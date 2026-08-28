@@ -24,6 +24,15 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+# Use the Windows/OS certificate store when available: certifi's bundle has
+# failed to validate api.the-odds-api.com on some networks (SSL verify error).
+try:
+    import truststore
+
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
