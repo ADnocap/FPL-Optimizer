@@ -107,8 +107,7 @@ def main() -> None:
         try:
             FPLAuth().access_token()
         except FPLAuthError as exc:
-            print(f"AUTH CHECK FAILED — nothing will be submitted.
-{exc}")
+            print(f"AUTH CHECK FAILED — nothing will be submitted.\n{exc}")
             return
         print("Auth OK (token refreshed)")
 
