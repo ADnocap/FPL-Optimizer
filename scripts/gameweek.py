@@ -99,6 +99,19 @@ def main() -> None:
             args.team_id = int(os.environ["FPL_TEAM_ID"])
             print(f"Using FPL_TEAM_ID={args.team_id} from .env")
 
+    # Fail fast on auth BEFORE any expensive work: refresh tokens can be
+    # revoked by a browser/app login on the same FPL session.
+    if args.apply:
+        from fpl_rl.live.auth import FPLAuth, FPLAuthError
+
+        try:
+            FPLAuth().access_token()
+        except FPLAuthError as exc:
+            print(f"AUTH CHECK FAILED — nothing will be submitted.
+{exc}")
+            return
+        print("Auth OK (token refreshed)")
+
     collector = LiveFPLCollector(data_dir=args.data_dir, season=args.season)
     bootstrap = collector.fetch_bootstrap()
     fixtures = collector.fetch_fixtures()
