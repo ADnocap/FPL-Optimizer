@@ -264,15 +264,35 @@ def main() -> None:
         buy_price = {el["id"]: el["now_cost"] for el in bootstrap["elements"]}
 
         if result.transfers_out:
-            payload = [
-                {
-                    "element_in": in_id,
-                    "element_out": out_id,
-                    "purchase_price": buy_price[in_id],
-                    "selling_price": selling.get(out_id, buy_price.get(out_id, 0)),
-                }
-                for out_id, in_id in zip(result.transfers_out, result.transfers_in)
-            ]
+            # FPL requires every transfer pair to be the SAME position type.
+            # The MILP only guarantees the resulting squad is valid, so its
+            # out/in lists may cross positions (e.g. MID out, DEF in) even
+            # when the squad shape is unchanged — re-pair them by type here.
+            el_type = {el["id"]: el["element_type"] for el in bootstrap["elements"]}
+            outs_by_type: dict[int, list[int]] = {}
+            for out_id in result.transfers_out:
+                outs_by_type.setdefault(el_type[out_id], []).append(out_id)
+            payload = []
+            for in_id in result.transfers_in:
+                pos = el_type[in_id]
+                if not outs_by_type.get(pos):
+                    print(
+                        f"ERROR: cannot pair incoming element {in_id} (type "
+                        f"{pos}) with an outgoing player of the same type; "
+                        "not submitting."
+                    )
+                    return
+                out_id = outs_by_type[pos].pop()
+                payload.append(
+                    {
+                        "element_in": in_id,
+                        "element_out": out_id,
+                        "purchase_price": buy_price[in_id],
+                        "selling_price": selling.get(
+                            out_id, buy_price.get(out_id, 0)
+                        ),
+                    }
+                )
             chip = args.chip if args.chip in ("wildcard", "free_hit") else None
             check = apply_transfers(
                 auth, args.team_id, gw, payload, chip=chip, confirm=False
