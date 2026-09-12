@@ -294,17 +294,34 @@ def main() -> None:
                     }
                 )
             chip = args.chip if args.chip in ("wildcard", "free_hit") else None
-            check = apply_transfers(
-                auth, args.team_id, gw, payload, chip=chip, confirm=False
-            )
-            print(f"\nTransfer dry-run OK: {check}")
+            # NOTE: the current FPL API applies transfers even when the
+            # payload says confirmed=false (observed GW3 2026-27: the
+            # follow-up confirmed=true POST failed with "Element in is
+            # already picked").  So there is no safe dry-run — submit once
+            # with confirmed=true and verify the resulting squad instead.
+            print("\nTransfer payload:")
+            for t in payload:
+                print(f"  out {t['element_out']} (sell {t['selling_price']}) -> "
+                      f"in {t['element_in']} (buy {t['purchase_price']})")
             if args.yes:
                 apply_transfers(
                     auth, args.team_id, gw, payload, chip=chip, confirm=True
                 )
-                print("Transfers COMMITTED.")
+                after = get_my_team(auth, args.team_id)
+                have = {p["element"] for p in after["picks"]}
+                missing = [t["element_in"] for t in payload
+                           if t["element_in"] not in have]
+                lingering = [t["element_out"] for t in payload
+                             if t["element_out"] in have]
+                if missing or lingering:
+                    print(f"ERROR: squad after transfers does not match — "
+                          f"missing ins {missing}, still present outs "
+                          f"{lingering}; not touching the lineup.")
+                    return
+                print(f"Transfers COMMITTED and verified "
+                      f"(bank now {after['transfers']['bank'] / 10:.1f}m).")
             else:
-                print("Dry-run only — re-run with --yes to commit.")
+                print("Not submitted — re-run with --yes to commit.")
         if args.yes:
             chip = args.chip if args.chip in ("bench_boost", "triple_captain") else None
             apply_lineup(
