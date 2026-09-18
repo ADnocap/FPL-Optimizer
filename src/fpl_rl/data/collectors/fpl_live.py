@@ -70,6 +70,43 @@ _FIXTURE_COLS = [
     "pulse_id",
 ]
 
+# From 2026-27 the FPL API publishes team ``strength`` as null and every
+# ``strength_attack_*`` / ``strength_defence_*`` as 0; only a 1-5 rating in
+# ``strength_overall_home`` / ``strength_overall_away`` survives.  The model's
+# opponent features (opponent.py) were trained on the old ~1000-1400 scale, so
+# reconstruct it: mean attack/defence values per 1-5 rating over the 2020-21 to
+# 2025-26 teams.csv files (home rating -> *_home columns, away -> *_away).
+_STRENGTH_SCALE = {
+    #        att_h, att_a, def_h, def_a
+    1: (975, 1000, 985, 1000),
+    2: (1038, 1060, 1047, 1065),
+    3: (1102, 1138, 1123, 1164),
+    4: (1181, 1228, 1236, 1289),
+    5: (1337, 1361, 1337, 1352),
+}
+
+
+def _backfill_team_strengths(team: dict) -> dict:
+    """Return a copy of a bootstrap team dict with the legacy strength fields
+    filled in when the API no longer provides them (2026-27 onwards)."""
+    t = dict(team)
+    legacy = [
+        "strength_attack_home", "strength_attack_away",
+        "strength_defence_home", "strength_defence_away",
+    ]
+    if t.get("strength") is not None and any(t.get(k) for k in legacy):
+        return t  # old-format payload, nothing to do
+    home = int(t.get("strength_overall_home") or 3)
+    away = int(t.get("strength_overall_away") or 3)
+    home, away = min(max(home, 1), 5), min(max(away, 1), 5)
+    t["strength"] = int(round((home + away) / 2))
+    t["strength_attack_home"] = _STRENGTH_SCALE[home][0]
+    t["strength_defence_home"] = _STRENGTH_SCALE[home][2]
+    t["strength_attack_away"] = _STRENGTH_SCALE[away][1]
+    t["strength_defence_away"] = _STRENGTH_SCALE[away][3]
+    return t
+
+
 
 class LiveFPLCollector(BaseCollector):
     """Build and refresh the current season's data files from the FPL API."""
@@ -284,7 +321,7 @@ class LiveFPLCollector(BaseCollector):
         )
 
         # --- teams.csv ---
-        pd.DataFrame(teams).to_csv(
+        pd.DataFrame([_backfill_team_strengths(t) for t in teams]).to_csv(
             self.raw_season_dir / "teams.csv", index=False, encoding="utf-8"
         )
 

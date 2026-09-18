@@ -60,6 +60,37 @@ def _fmt_player(eid: int, elements: dict, teams: dict, pts: dict) -> str:
     )
 
 
+def _resolve_element(name_or_id: str, elements: dict[int, dict]) -> int:
+    """web_name (case-insensitive, unique) or numeric element id -> element id."""
+    if name_or_id.isdigit():
+        return int(name_or_id)
+    hits = [el for el in elements.values()
+            if el["web_name"].lower() == name_or_id.lower()]
+    if len(hits) != 1:
+        raise SystemExit(
+            f"--captain/--vice '{name_or_id}' matches {len(hits)} players"
+            + (": " + ", ".join(f"{h['web_name']} (id {h['id']})" for h in hits)
+               if hits else "") + " — pass the element id instead."
+        )
+    return hits[0]["id"]
+
+
+def _override_captaincy(result, captain: str | None, vice: str | None,
+                        elements: dict[int, dict]):
+    """Replace the MILP's captain/vice with user picks from the same XI."""
+    import dataclasses
+
+    cap_id = _resolve_element(captain, elements) if captain else result.captain_id
+    vice_id = _resolve_element(vice, elements) if vice else result.vice_captain_id
+    if vice_id == cap_id:  # keep them distinct: fall back to the MILP's other pick
+        vice_id = (result.captain_id if result.captain_id != cap_id
+                   else result.vice_captain_id)
+    for label, eid in (("captain", cap_id), ("vice", vice_id)):
+        if eid not in result.lineup_element_ids:
+            raise SystemExit(f"--{label} {eid} is not in the recommended XI")
+    return dataclasses.replace(result, captain_id=cap_id, vice_captain_id=vice_id)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--team-id", type=int, default=None)
@@ -80,6 +111,11 @@ def main() -> None:
     parser.add_argument("--ep", action="store_true",
                         help="use FPL's own EP instead of the trained model")
     parser.add_argument("--min-chance", type=int, default=75)
+    parser.add_argument("--captain", default=None, metavar="NAME_OR_ID",
+                        help="override the MILP captain (web_name or element id; "
+                             "must be in the recommended XI)")
+    parser.add_argument("--vice", default=None, metavar="NAME_OR_ID",
+                        help="override the MILP vice-captain (same rules)")
     parser.add_argument("--apply", action="store_true",
                         help="submit to the FPL API (dry-run validation unless --yes; "
                              "needs FPL_REFRESH_TOKEN in .env — see live/auth.py)")
@@ -227,6 +263,11 @@ def main() -> None:
         else:
             print("Transfers: none (roll the free transfer)")
         print()
+
+    # 3b. Captain override (bookmaker/EP signal has beaten the model's
+    # form-driven captain pick early season — see live-season notes).
+    if args.captain or args.vice:
+        result = _override_captaincy(result, args.captain, args.vice, elements)
 
     # 4. Report
     print(f"=== {header} — expected XI points: {result.objective_value:.1f} ===\n")
