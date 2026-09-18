@@ -60,25 +60,33 @@ and compare objective values. Sanity check vs FPL's own EP: `--ep`.
   GK saves 2 + inside-box +1 + big-chance +1, pen save 8→7. Bonus-sensitive
   historical patterns from ≤2025/26 are slightly off — retraining absorbs most.
 - Chips 4×2: **WC/FH not playable GW1** (start GW2); BB/TC from GW1; one chip
-  per GW; first set **expires at GW19 deadline (Sat 2 Jan 2027, 13:30 GMT)**;
-  FH in GW19 blocks FH in GW20.
+  per GW; first set **expires at GW19 deadline (Fri 1 Jan 2027, 18:30 UTC —
+  re-read from the API 2026-09-18)**; FH in GW19 blocks FH in GW20.
 - FTs: bank to 5; on a WC/FH week the banked count carries **unchanged**;
   hits −4; max 20 transfers/GW (no cap on WC/FH). Sell = purchase +
   floor(appreciation/2). No AFCON FT top-up this season.
 - Prices: locked until GW1 deadline, then ±£0.1m/day at 00:00 UK; NEW official
   Price Change Predictor page (updates every 15 min) — useful before buying.
 
-## Chip plan (community consensus + our model)
+## Chip plan (approved 2026-09-18, after GW5)
 
-| Chip | Window | Plan |
-|------|--------|------|
-| Bench Boost 1 | GW1-19 | GW1-2 only if bench is built to start; otherwise after WC1 |
-| Triple Captain 1 | GW1-19 | Haaland home vs promoted side: GW3 (COV), GW7 (IPS), GW16 (HUL) |
-| Wildcard 1 | GW2-19 | GW5-6 international break (5 GWs of minutes data) |
-| Free Hit 1 | GW2-19 | Reactive — bad fixture week / injury pile-up |
-| Second set | GW20-38 | Save for spring DGWs (BB on the biggest DGW, TC on a Haaland DGW) |
+Facts behind it: **no blank or double GW anywhere in GW1-19** (0 unscheduled
+fixtures on 2026-09-18), so first-half chips are single-GW plays worth roughly
+TC +8, BB +10-15, WC +15-25 — the second set is where the season is decided.
+Haaland's soft home fixtures: GW7 IPS, GW9 BHA, GW11 FUL, GW13 LEE, GW16 HUL.
+Decision points are in Google Calendar (green events, like the deadlines).
 
-Don't hoard the first set — it dies at GW19.
+| Chip | Plan | Decision point |
+|------|------|----------------|
+| Triple Captain 1 | **GW7, Haaland home v Ipswich (Sat 17 Oct)** — promoted side, close enough to carry little injury/expiry risk. Fallback GW16 v Hull (H) | Fri 16 Oct, GW7 prep |
+| Wildcard 1 | **GW11 (Sat 21 Nov)**, after the November break and the ~GW8 retrain, built for the festive run (GW12-19 = 8 GWs in 5 weeks). Pull forward to any GW6-10 if ≥3 starters are flagged/out; until then 1 FT/week handles the drift | Fri 23 Oct (retrain + early-pull check), Fri 20 Nov (build) |
+| Bench Boost 1 | **GW12 or GW13** — first GW after the WC where the bench has 4 starters; the WC squad is built for it | the WC week |
+| Free Hit 1 | Reactive (injury pile-up / bad fixture week). Hard fallback **GW18 (Tue 29 Dec)**, festive midweek rotation. **Never GW19**: FH there blocks FH2 in GW20 | Sat 26 Dec, GW17 prep |
+| Second set (GW20-38) | Hold all four for the spring BGW/DGW map, revealed by the FA Cup R5 draw (~mid-Feb): WC2 the GW before the big DGW, BB on it, TC on a Haaland DGW, FH on the big BGW | mid-Feb 2027 |
+
+Rules that shaped it: one chip per GW (so TC GW7 and BB cannot share a week);
+WC/FH keep the banked FT count unchanged (rolling into a WC week is free);
+first-half chips die at the GW19 deadline.
 
 ## Meta notes for 2026/27
 
