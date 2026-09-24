@@ -1,3 +1,15 @@
+> **RETRACTED (2026-09-24). The conclusion of this document is wrong: vaastav's `xP` IS a
+> same-gameweek leak.** FPL recomputes a finished GW's `ep_this` from form that already
+> includes that GW's points; §4 below tested mid-GW (10 of 13 fixtures played), before
+> the recompute. Direct proof on 2026-27 GW5: the pre-deadline `ep_next` snapshot vs
+> `ep_this` read after the GW differ for 46% of players (Brobbey 1.8 → 5.5 after 17 pts,
+> Palmer 6.5 → 3.8 after 2 pts); Spearman with GW5 points is 0.744 pre-deadline vs 0.855
+> post-GW. Historically, players with vaastav xP ≥ 5 returned 5+ points 58-66% of the
+> time vs 31% for the honest pre-deadline EP in 2026-27, and same-GW OLS weight on xP is
+> 0.29-0.37 in every season 2020-21..2025-26. The model now uses `fpl_xp_lag` (the
+> previous GW's xP, point-in-time safe; live = the pre-deadline snapshot's `ep_this`).
+> Evidence: `reports/2026-27_gw1-5_review.md`. The text below is kept for the record.
+
 # Is vaastav's `xP` column a post-match leak? No.
 
 This document proves — structurally, empirically, and from source code — that the `xP` column in `vaastav/Fantasy-Premier-League`'s `merged_gw.csv` cannot contain post-match information about the gameweek it labels. It is a pre-match prediction (`ep_this`) captured via the official FPL API during that gameweek's `is_current=True` window. The only known failure mode produces **missing** values, not **leaked** values.

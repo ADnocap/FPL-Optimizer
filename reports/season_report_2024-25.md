@@ -1,3 +1,9 @@
+> **RETRACTED (2026-09-24): these numbers are leak-inflated.** The model behind this
+> replay was trained AND evaluated with vaastav's same-GW `xP`, which contains that GW's own
+> points (see the banner in `EP_FORMULA.md`). Served the way it runs live (with honest
+> pre-deadline xP), the same model scores about 1,850-2,020 on 2024-25, not 2,918 (the
+> field average was 2,008). Honest, leak-free numbers: `reports/2026-27_gw1-5_review.md`.
+
 # MILP Optimizer Season Report — 2024-25
 
 **Strategy**: LightGBM predictions + MILP optimizer, max 1 transfer/GW

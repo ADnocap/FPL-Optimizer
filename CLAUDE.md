@@ -95,9 +95,16 @@ entry API ──fetch_entry_state──> GameState (squad/bank/FTs/chips)
 - **Prices are in tenths**: `100 = £10.0m`. All price math is integer.
 - **Lineup/bench are indices into `Squad.players`**, not element_ids.
 - **Point-in-time discipline**: post-match features come from gw-1; pre-match
-  (price, selected, was_home, xP) from the current gw. `ep_this`/`ep_next` is
-  point-in-time safe but must be snapshotted in its GW window (see EP_FORMULA.md —
-  xP is NOT a lookahead leak; MEMORY notes saying otherwise are outdated).
+  (price, selected, was_home) from the current gw. **vaastav's `xP` for GW n is a
+  same-GW leak** (FPL recomputes `ep_this` after the GW with its own points; EP_FORMULA.md
+  is retracted): the model only uses `fpl_xp_lag` = the previous GW's xP. Live, the
+  collector gives merged_gw `xP` the same post-GW semantics from the next deadline's
+  snapshot `ep_this`, so the lag is identical in training and serving.
+- **Understat per-match features compare calendar days** (a match on the GW's first
+  kickoff day is that GW's outcome — the old timestamp filter leaked it).
+- **Train only on what can be served**: a feature that is always NaN at a live deadline
+  must not be in the model. `gameweek.py` prints a data-health block (live coverage vs
+  the model's `serving_reference.json`) — read it every week.
 - **Live rebuilds replace synthetic rows**: `build_season_files()` regenerates
   merged_gw.csv each run; upcoming-GW synthetic rows (stats zeroed) are replaced
   by real rows after the GW completes.
