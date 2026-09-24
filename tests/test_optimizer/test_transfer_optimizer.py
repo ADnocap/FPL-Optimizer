@@ -192,3 +192,41 @@ class TestTransferOptimizer:
         candidates = [c for c in squad_15_candidates if c.element_id not in missing]
         result = optimize_transfers(optimizer_game_state, candidates)
         assert len(result.squad_element_ids) == 15
+
+
+class TestHitMargin:
+    """A hit must promise more than 4 + hit_margin points."""
+
+    @staticmethod
+    def _buys_star(state, squad, xp, margin):
+        star = _make_candidate(99, Position.MID, 45, 10, xp=xp)
+        res = optimize_transfers(state, squad + [star], hit_margin=margin)
+        return 99 in res.squad_element_ids, res
+
+    def _threshold(self, state, squad, margin):
+        lo, hi = 0.0, 11.0  # below the 12-xP captain: the star never wears the armband
+        for _ in range(30):
+            mid = (lo + hi) / 2
+            if self._buys_star(state, squad, mid, margin)[0]:
+                hi = mid
+            else:
+                lo = mid
+        return hi
+
+    def test_margin_raises_the_bar_by_exactly_the_margin(
+        self, squad_15_candidates, optimizer_game_state
+    ):
+        optimizer_game_state.free_transfers = 0  # any transfer is a -4 hit
+        t0 = self._threshold(optimizer_game_state, squad_15_candidates, 0.0)
+        t2 = self._threshold(optimizer_game_state, squad_15_candidates, 2.0)
+        assert t2 - t0 == pytest.approx(2.0, abs=0.01)
+
+    def test_reported_points_exclude_the_margin(
+        self, squad_15_candidates, optimizer_game_state
+    ):
+        optimizer_game_state.free_transfers = 0
+        bought0, r0 = self._buys_star(optimizer_game_state, squad_15_candidates, 10.5, 0.0)
+        bought2, r2 = self._buys_star(optimizer_game_state, squad_15_candidates, 10.5, 2.0)
+        assert bought0 and bought2
+        assert r2.hit_cost == TRANSFER_HIT_COST
+        assert r2.objective_value == pytest.approx(r0.objective_value, abs=1e-6)

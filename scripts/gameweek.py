@@ -68,6 +68,11 @@ DEFAULT_DATA_DIR = REPO_ROOT / "data"
 # Prefer the model retrained with 2025-26 (DEFCON-era) data when available
 _PROD = REPO_ROOT / "models" / "prod_2026-27"
 DEFAULT_MODEL_DIR = _PROD if _PROD.exists() else REPO_ROOT / "models" / "full_pregame"
+# Single-GW optimizer: a hit must promise > 4 + 2 points. On leak-free
+# holdout replays (252 seasons, 2024-25/2025-26) margin 2 tied the plain
+# 4-point rule overall and won on the noisy-prediction paths; live
+# predictions are noisier than the holdout, so it is the default here.
+SINGLE_GW_HIT_MARGIN = 2.0
 
 
 def _fmt_player(eid: int, elements: dict, teams: dict, pts: dict) -> str:
@@ -223,7 +228,8 @@ def main() -> None:
     parser.add_argument("--discount", type=float, default=None,
                         help="per-GW discount (default: HorizonConfig)")
     parser.add_argument("--hit-margin", type=float, default=None,
-                        help="extra penalty per -4 hit (default: HorizonConfig)")
+                        help="extra decision penalty per -4 hit: a hit must promise "
+                             "> 4 + margin points (default 2 single-GW, 4 horizon)")
     parser.add_argument("--ft-value", type=float, default=None,
                         help="value per FT banked after the horizon (default: HorizonConfig)")
     parser.add_argument("--max-hits", type=int, default=None,
@@ -326,7 +332,34 @@ def main() -> None:
     if not args.skip_build:
         collector.snapshot_predeadline()
         if not args.skip_refresh:
-            collector.refresh_element_summaries(bootstrap)
+            try:
+                collector.refresh_element_summaries(bootstrap)
+            except RuntimeError as exc:
+                print(f"ERROR: {exc}")
+                return
+        else:
+            # --skip-refresh reuses the summaries on disk: they must postdate the
+            # last finished GW, or the latest results are missing from the form.
+            last_done = max(
+                (e for e in bootstrap["events"] if e.get("finished")),
+                key=lambda e: e["id"], default=None,
+            )
+            refreshed = collector.summaries_refreshed_utc()
+            if last_done is not None:
+                from datetime import datetime, timedelta
+
+                kickoffs = [
+                    datetime.fromisoformat(f["kickoff_time"].replace("Z", "+00:00"))
+                    for f in fixtures
+                    if f.get("event") == last_done["id"] and f.get("kickoff_time")
+                ]
+                results_in = (max(kickoffs) if kickoffs else datetime.fromisoformat(
+                    last_done["deadline_time"].replace("Z", "+00:00"))) + timedelta(hours=3)
+                if refreshed is None or refreshed <= results_in:
+                    print(f"ERROR: --skip-refresh but the element summaries predate "
+                          f"GW{last_done['id']} (last full refresh: {refreshed}). "
+                          "Run without --skip-refresh.")
+                    return
         collector.build_season_files(
             bootstrap=bootstrap, fixtures=fixtures, include_upcoming=True
         )
@@ -345,6 +378,7 @@ def main() -> None:
     # must not scale by availability a second time in EP mode.
     using_ep = args.ep
     health: list[str] = []
+    extras: dict[int, dict] = {}
     horizon_preds = None
     horizon_gws: list[int] = []
     if args.horizon is not None and args.team_id is not None:
@@ -353,7 +387,7 @@ def main() -> None:
         horizon_gws = list(range(gw, min(gw + args.horizon, 39)))
         horizon_preds = predict_horizon_live(
             args.data_dir, args.model_dir, args.season, gw, len(horizon_gws),
-            health=health,
+            health=health, extras=extras,
         )
         if horizon_preds.empty:
             print("ERROR: no horizon predictions — cannot run the multi-GW planner.")
@@ -367,7 +401,8 @@ def main() -> None:
         print("Predictions: FPL EP (ep_next)")
     else:
         predictions = predict_upcoming_gw(
-            args.data_dir, args.model_dir, args.season, gw, health=health
+            args.data_dir, args.model_dir, args.season, gw, health=health,
+            extras=extras,
         )
         if not predictions:
             print("WARNING: model produced no predictions — falling back to EP.")
@@ -468,7 +503,8 @@ def main() -> None:
                 availability_scaling=not using_ep,
             )
             result = optimize_transfers(
-                gs, candidates, chip=args.chip, max_transfers=args.max_transfers
+                gs, candidates, chip=args.chip, max_transfers=args.max_transfers,
+                hit_margin=SINGLE_GW_HIT_MARGIN if args.hit_margin is None else args.hit_margin,
             )
         header = "Recommended plan"
 
@@ -501,6 +537,19 @@ def main() -> None:
     print("\nBench (sub priority order):")
     for eid in result.bench_element_ids:
         print(f"  {_fmt_player(eid, elements, teams, predictions)}")
+    # Captaincy view: the model's pick next to FPL's EP and the bookmakers'
+    # anytime-scorer probability. In GW1-5 2026-27 the human/market captain
+    # beat the (then leaky) model's; the call stays with the human.
+    ep_next = {el["id"]: float(el.get("ep_next") or 0.0) for el in bootstrap["elements"]}
+    xi_ranked = sorted(result.lineup_element_ids, key=lambda e: -predictions.get(e, 0.0))
+    print("\nCaptaincy view (XI, by model xPts):   model   FPL-EP   P(goal, books)")
+    for eid in xi_ranked[:6]:
+        p_goal = extras.get(eid, {}).get("p_goal")
+        tag = " (C)" if eid == result.captain_id else (" (V)" if eid == result.vice_captain_id else "")
+        print(f"  {elements[eid]['web_name']:<22}{tag:<5}{predictions.get(eid, 0.0):>6.2f}"
+              f"   {ep_next.get(eid, 0.0):>6.1f}   "
+              + (f"{p_goal:>6.0%}" if p_goal is not None else "     -"))
+
     # The chip this GW: --chip, or the planner's chip-plan entry for this GW
     chip_used = result.chip if horizon_preds is not None else args.chip
     if chip_used:

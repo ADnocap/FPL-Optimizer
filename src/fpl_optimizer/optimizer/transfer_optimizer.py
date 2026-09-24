@@ -60,6 +60,7 @@ def optimize_transfers(
     top_per_pos: int = _TOP_PER_POSITION,
     max_transfers: int | None = None,
     squad_teams: dict[int, int] | None = None,
+    hit_margin: float = 0.0,
 ) -> OptimizerResult:
     """Decide optimal transfers for one gameweek.
 
@@ -82,6 +83,11 @@ def optimize_transfers(
         member is missing from *candidates* (e.g. a blank-GW player in the
         historical backtest pool) so it still counts toward its real club's
         3-player limit.
+    hit_margin : float
+        Extra decision penalty per -4 hit: a hit is only taken if it promises
+        more than ``4 + hit_margin`` points. Guards against acting on noisy /
+        over-predicted buys (live predictions are noisier than the holdout).
+        Reported ``hit_cost`` and ``objective_value`` stay in real points.
 
     Returns
     -------
@@ -173,7 +179,7 @@ def optimize_transfers(
         for k in range(max_possible - 1):
             prob += t[k] >= t[k + 1]
         # Hit = 4 * sum of t_k for k >= free_transfers
-        hit_expr = TRANSFER_HIT_COST * pulp.lpSum(
+        hit_expr = (TRANSFER_HIT_COST + hit_margin) * pulp.lpSum(
             t[k] for k in range(free_transfers, max_possible)
         )
 
@@ -338,7 +344,8 @@ def optimize_transfers(
         transfers_in=transfers_in,
         transfers_out=transfers_out,
         chip=chip,
-        objective_value=pulp.value(prob.objective),
+        # real points: add back the decision-only margin on the hits taken
+        objective_value=pulp.value(prob.objective) + hit_margin * hit_cost / TRANSFER_HIT_COST,
         total_cost=total_cost,
         hit_cost=hit_cost,
     )

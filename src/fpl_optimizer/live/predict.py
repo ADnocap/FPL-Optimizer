@@ -75,6 +75,21 @@ def serving_health(gw_df, feature_names: list[str], reference: dict | None) -> l
     return warnings
 
 
+def _collect_extras(gw_df, id_resolver, season: str, extras: dict[int, dict]) -> None:
+    """element -> {"p_goal": bookmaker anytime-scorer probability} (DGW summed xG)."""
+    import math
+
+    if "props_xg" not in gw_df.columns:
+        return
+    for code, xg in zip(gw_df["code"], gw_df["props_xg"]):
+        eid = id_resolver.element_id_from_code(int(code), season)
+        if eid is None or xg != xg:  # NaN: no bookmaker line
+            continue
+        rec = extras.setdefault(eid, {"props_xg": 0.0})
+        rec["props_xg"] = rec.get("props_xg", 0.0) + float(xg)
+        rec["p_goal"] = 1.0 - math.exp(-rec["props_xg"])
+
+
 def _load_reference(model_dir: Path) -> dict | None:
     import json
 
@@ -90,11 +105,13 @@ def predict_upcoming_gw(
     season: str,
     gw: int,
     health: list[str] | None = None,
+    extras: dict[int, dict] | None = None,
 ) -> dict[int, float]:
     """Return element_id -> predicted points for the given upcoming GW.
 
     If *health* is a list, serving-health warnings (see :func:`serving_health`)
-    are appended to it.
+    are appended to it. If *extras* is a dict, it receives per-player display
+    context from the same rows (see :func:`_collect_extras`).
     """
     predictor = PointPredictor.load(model_dir)
     id_resolver = IDResolver(data_dir)
@@ -120,6 +137,9 @@ def predict_upcoming_gw(
     if health is not None:
         health.extend(warnings)
 
+    if extras is not None:
+        _collect_extras(gw_df, id_resolver, season, extras)
+
     preds = predictor.predict(gw_df)
     out: dict[int, float] = defaultdict(float)
     for pred, (_, row) in zip(preds, gw_df.iterrows()):
@@ -139,6 +159,7 @@ def predict_horizon_live(
     horizon: int,
     dgw_mode: str = "blend",
     health: list[str] | None = None,
+    extras: dict[int, dict] | None = None,
 ):
     """Predictions for GWs gw..gw+horizon-1 as of the GW ``gw`` deadline.
 
@@ -165,6 +186,8 @@ def predict_horizon_live(
         )
         for c in missing:
             df[c] = float("nan")
+    if extras is not None:
+        _collect_extras(df[df["GW"] == gw], id_resolver, season, extras)
     warnings = serving_health(df[df["GW"] == gw], predictor._feature_names,
                               _load_reference(model_dir))
     for w in warnings:

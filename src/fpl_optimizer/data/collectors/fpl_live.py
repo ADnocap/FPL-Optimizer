@@ -29,6 +29,7 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -302,16 +303,59 @@ class LiveFPLCollector(BaseCollector):
     # ------------------------------------------------------------------
 
     def refresh_element_summaries(self, bootstrap: dict, max_workers: int = 4) -> None:
-        """Re-download every element summary (cache is stale in-season)."""
-        summary_dir = self.data_dir / "fpl_api" / "element_summaries" / self.season
+        """Re-download every element summary, atomically.
+
+        Downloads into a staging directory and only swaps it in when every
+        player succeeded, so a network failure can never leave the season
+        half-refreshed (the old code deleted everything first and then ignored
+        failed downloads). Raises RuntimeError on any failure; the previous
+        files stay in place.
+        """
+        base = self.data_dir / "fpl_api" / "element_summaries"
+        summary_dir = base / self.season
+        tag = f"{self.season}.staging"
+        staging = base / tag
+        if staging.exists():
+            shutil.rmtree(staging)
+        # Reuse FPLAPICollector's threaded downloader via a staging season tag
+        boot_dir = self.data_dir / "fpl_api" / "bootstrap"
+        boot_dir.mkdir(parents=True, exist_ok=True)
+        (boot_dir / f"{self.season}.json").write_text(json.dumps(bootstrap), encoding="utf-8")
+        staging_boot = boot_dir / f"{tag}.json"
+        staging_boot.write_text(json.dumps(bootstrap), encoding="utf-8")
+        try:
+            ok = self.api._collect_element_summaries(tag, max_workers=max_workers)
+        finally:
+            staging_boot.unlink(missing_ok=True)
+        n_expected = len(bootstrap.get("elements", []))
+        n_got = len(list(staging.glob("*.json"))) if staging.exists() else 0
+        if not ok or n_got < n_expected:
+            raise RuntimeError(
+                f"element-summary refresh incomplete ({n_got}/{n_expected} players); "
+                f"kept the previous files in {summary_dir}. Re-run, or use "
+                "--skip-refresh if they are recent enough."
+            )
+        old = base / f"{self.season}.old"
+        if old.exists():
+            shutil.rmtree(old)
         if summary_dir.exists():
-            for old in summary_dir.glob("*.json"):
-                old.unlink()
-        # Reuse FPLAPICollector's threaded downloader via its bootstrap cache
-        boot_path = self.data_dir / "fpl_api" / "bootstrap" / f"{self.season}.json"
-        boot_path.parent.mkdir(parents=True, exist_ok=True)
-        boot_path.write_text(json.dumps(bootstrap), encoding="utf-8")
-        self.api._collect_element_summaries(self.season, max_workers=max_workers)
+            summary_dir.rename(old)
+        staging.rename(summary_dir)
+        if old.exists():
+            shutil.rmtree(old)
+        (summary_dir / "_refreshed_utc.txt").write_text(
+            datetime.now(timezone.utc).isoformat(), encoding="utf-8"
+        )
+
+    def summaries_refreshed_utc(self) -> datetime | None:
+        """When the element summaries were last fully refreshed (None if unknown)."""
+        stamp = self.data_dir / "fpl_api" / "element_summaries" / self.season / "_refreshed_utc.txt"
+        if not stamp.exists():
+            return None
+        try:
+            return datetime.fromisoformat(stamp.read_text(encoding="utf-8").strip())
+        except ValueError:
+            return None
 
     # ------------------------------------------------------------------
     # Season file builder
