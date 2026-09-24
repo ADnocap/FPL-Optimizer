@@ -210,7 +210,7 @@ def run_optimizer(predictions: dict) -> None:
     from fpl_optimizer.optimizer.squad_selection import select_squad
     from fpl_optimizer.optimizer.transfer_optimizer import optimize_transfers
     from fpl_optimizer.optimizer.types import build_candidate_pool, to_engine_action
-    from fpl_optimizer.utils.constants import INITIAL_FREE_TRANSFERS, STARTING_BUDGET
+    from fpl_optimizer.utils.constants import GW1_FREE_TRANSFERS, STARTING_BUDGET
 
     loader = SeasonDataLoader(HOLDOUT, DEFAULT_DATA_DIR)
     engine = FPLGameEngine(loader)
@@ -242,7 +242,7 @@ def run_optimizer(predictions: dict) -> None:
     )
     state = GameState(
         squad=squad, bank=STARTING_BUDGET - result.total_cost,
-        free_transfers=INITIAL_FREE_TRANSFERS, current_gw=1,
+        free_transfers=GW1_FREE_TRANSFERS, current_gw=1,
     )
 
     print(f"\n{'='*70}")

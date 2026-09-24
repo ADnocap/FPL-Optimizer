@@ -56,17 +56,25 @@ feature modules (`features/vaastav|understat|prior_season|opponent|odds|players_
 `id_resolver.py` (element_id ↔ stable code ↔ understat/fbref ids; auto-loads
 `data/id_maps/live_element_code_*.csv` supplements built from bootstrap `code`),
 `model.py` (4 boosters, one per position; NaN-tolerant; selects features by name),
-`integration.py` pre-computes a season's `(element_id, gw) → xPts` lookup (used by the backtest).
+`integration.py` pre-computes a season's `(element_id, gw) → xPts` lookup (used by the backtest),
+`horizon.py` (multi-GW predictions as of a deadline: the as-of-t row with only
+the fixture features swapped per future fixture — opponent/venue/FDR/DGW, team
+stats rolled over GW < t, odds/props unknown → NaN/no-line; blanks = 0).
 
 **`optimizer/`** — PuLP MILP suite: `squad_selection.py` (initial 15),
-`transfer_optimizer.py` (weekly transfers vs a GameState: bank, selling prices,
-FTs, hit costs), `lineup_selector.py` (XI+captain), `backtest.py` (full-season
-replay). Solver: PULP_CBC_CMD. Objective is single-GW; no chip scheduling.
+`transfer_optimizer.py` (single-GW transfers vs a GameState: bank, selling prices,
+FTs, hit costs), `horizon_optimizer.py` (multi-period receding-horizon planner:
+FT banking to 5, hits, budget per GW, a GIVEN chip schedule WC/FH/BB/TC, bench
+value from the XI's DNP risk; execute GW t only, re-solve weekly),
+`lineup_selector.py` (XI+captain), `backtest.py` (full-season replay; season
+replays of the planner: `scripts/backtest_horizon.py`). Solver: PULP_CBC_CMD.
+Chips are a human schedule (SEASON_GUIDE.md) — there is no chip *scheduler*.
 
 **`live/`** — Live-season glue: `entry.py` (public entry API → GameState with
 reconstructed purchase/selling prices, FT bank simulation, chips),
-`pool.py` (candidates from bootstrap with availability filtering/scaling),
-`predict.py` (upcoming-GW model predictions).
+`pool.py` (candidates from bootstrap with availability filtering/scaling;
+`build_live_horizon_candidates` for the planner), `predict.py` (upcoming-GW and
+horizon model predictions).
 
 `cluster/` — SLURM scripts for the LaRuche cluster.
 

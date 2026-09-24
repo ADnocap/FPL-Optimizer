@@ -57,7 +57,7 @@ def main() -> None:
     from fpl_optimizer.prediction.feature_pipeline import FeaturePipeline
     from fpl_optimizer.prediction.id_resolver import IDResolver
     from fpl_optimizer.prediction.model import PointPredictor
-    from fpl_optimizer.utils.constants import INITIAL_FREE_TRANSFERS, STARTING_BUDGET
+    from fpl_optimizer.utils.constants import GW1_FREE_TRANSFERS, STARTING_BUDGET
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--season", default="2025-26")
@@ -130,22 +130,28 @@ def main() -> None:
     state = GameState(
         squad=squad,
         bank=STARTING_BUDGET - init.total_cost,
-        free_transfers=INITIAL_FREE_TRANSFERS,
+        free_transfers=GW1_FREE_TRANSFERS,
         current_gw=first_gw,
     )
 
     gross = hits = xfers = 0
     gw_scores = []
     for gw in gws:
-        try:
-            opt = optimize_transfers(
-                state,
-                build_candidate_pool(loader, gw, pred_for_gw(gw)),
-                max_transfers=args.max_transfers if gw != first_gw else None,
-            )
-            action = to_engine_action(opt)
-        except Exception:
-            action = EngineAction()
+        if gw == first_gw:
+            # The GW1 squad was just picked freely: play it as selected
+            # (no transfers — FPL has none before the GW1 deadline).
+            action = to_engine_action(init)
+            action.transfers_in, action.transfers_out = [], []
+        else:
+            try:
+                opt = optimize_transfers(
+                    state,
+                    build_candidate_pool(loader, gw, pred_for_gw(gw)),
+                    max_transfers=args.max_transfers,
+                )
+                action = to_engine_action(opt)
+            except Exception:
+                action = EngineAction()
         try:
             state, res = engine.step(state, action)
         except ValueError:

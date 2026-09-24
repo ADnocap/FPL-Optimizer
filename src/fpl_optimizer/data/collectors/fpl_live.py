@@ -367,6 +367,21 @@ class LiveFPLCollector(BaseCollector):
             for el in elements
         }
 
+        # Club at the time of each fixture: history rows carry the fixture id
+        # and was_home, so the side is exact.  (Labelling past rows with the
+        # player's CURRENT club puts a transferred player's old-club fixtures
+        # under the new club -> phantom DGWs and mixed team stats.)
+        fixture_sides = {
+            f["id"]: (f.get("team_h"), f.get("team_a")) for f in fixtures
+        }
+
+        def _team_at_fixture(h: dict, fallback: str) -> str:
+            sides = fixture_sides.get(h.get("fixture"))
+            if not sides or h.get("was_home") is None:
+                return fallback
+            tid = sides[0] if h.get("was_home") else sides[1]
+            return team_name.get(tid, fallback)
+
         summary_dir = self.data_dir / "fpl_api" / "element_summaries" / self.season
         rows: list[dict] = []
         if summary_dir.exists():
@@ -384,7 +399,7 @@ class LiveFPLCollector(BaseCollector):
                     row = {c: h.get(c) for c in _HISTORY_STAT_COLS}
                     row["name"] = meta["name"]
                     row["position"] = meta["position"]
-                    row["team"] = meta["team"]
+                    row["team"] = _team_at_fixture(h, meta["team"])
                     row["xP"] = xp_map.get((eid, h["round"]), "")
                     row["element"] = eid
                     row["GW"] = h["round"]

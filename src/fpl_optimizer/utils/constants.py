@@ -49,6 +49,11 @@ POINTS_OWN_GOAL = -2
 TRANSFER_HIT_COST = 4  # points deducted per extra transfer
 MAX_FREE_TRANSFERS = 5
 INITIAL_FREE_TRANSFERS = 1
+# FTs held DURING GW1 by a simulated season start: the GW1 squad is picked
+# freely (no transfers), and the engine's end-of-GW +1 then gives exactly the
+# 1 FT that FPL grants for GW2.  (Starting GW1 with INITIAL_FREE_TRANSFERS
+# would wrongly hand the backtest 2 FTs in GW2.)
+GW1_FREE_TRANSFERS = 0
 
 # Chip names
 CHIP_WILDCARD = "wildcard"
