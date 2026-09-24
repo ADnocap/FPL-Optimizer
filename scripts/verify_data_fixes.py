@@ -19,8 +19,8 @@ SEASONS = [
 
 
 def main() -> None:
-    from fpl_rl.prediction.id_resolver import IDResolver
-    from fpl_rl.prediction.feature_pipeline import FeaturePipeline
+    from fpl_optimizer.prediction.id_resolver import IDResolver
+    from fpl_optimizer.prediction.feature_pipeline import FeaturePipeline
 
     print("=" * 70)
     print("VERIFYING DATA FIXES")

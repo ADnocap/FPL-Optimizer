@@ -2,9 +2,9 @@
 
 import pytest
 
-from fpl_rl.engine.lineup import perform_auto_subs
-from fpl_rl.engine.state import PlayerSlot, Squad
-from fpl_rl.utils.constants import Position
+from fpl_optimizer.engine.lineup import perform_auto_subs
+from fpl_optimizer.engine.state import PlayerSlot, Squad
+from fpl_optimizer.utils.constants import Position
 
 
 class TestAutoSubs:

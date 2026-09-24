@@ -7,7 +7,7 @@ import math
 import pandas as pd
 import pytest
 
-from fpl_rl.prediction.features.vaastav import (
+from fpl_optimizer.prediction.features.vaastav import (
     FEATURE_COLUMNS,
     compute_vaastav_features,
 )

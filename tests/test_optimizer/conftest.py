@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from fpl_rl.engine.state import (
+from fpl_optimizer.engine.state import (
     ChipState,
     GameState,
     PlayerSlot,
     Squad,
 )
-from fpl_rl.optimizer.types import PlayerCandidate
-from fpl_rl.utils.constants import Position, STARTING_BUDGET
+from fpl_optimizer.optimizer.types import PlayerCandidate
+from fpl_optimizer.utils.constants import Position, STARTING_BUDGET
 
 
 def _make_candidate(

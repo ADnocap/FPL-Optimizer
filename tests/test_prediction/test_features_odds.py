@@ -9,12 +9,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fpl_rl.prediction.features.odds import (
+from fpl_optimizer.prediction.features.odds import (
     FEATURE_COLS,
     compute_odds_features,
     _match_odds_to_teams,
 )
-from fpl_rl.data.collectors.odds import odds_team_to_fpl_name
+from fpl_optimizer.data.collectors.odds import odds_team_to_fpl_name
 
 
 # ---------------------------------------------------------------------------

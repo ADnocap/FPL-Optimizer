@@ -40,7 +40,7 @@ PARAMS = {
 
 
 def train_and_eval(df, label, model_dir):
-    from fpl_rl.prediction.model import PointPredictor
+    from fpl_optimizer.prediction.model import PointPredictor
 
     train_full = df[df["season"].isin(TRAIN_SEASONS)].copy()
     holdout_df = df[df["season"] == HOLDOUT].copy()
@@ -106,14 +106,14 @@ def train_and_eval(df, label, model_dir):
 
 
 def run_optimizer(predictions, label, max_xfers=None):
-    from fpl_rl.data.downloader import DEFAULT_DATA_DIR
-    from fpl_rl.data.loader import SeasonDataLoader
-    from fpl_rl.engine.engine import FPLGameEngine
-    from fpl_rl.engine.state import ChipState, EngineAction, GameState, PlayerSlot, Squad
-    from fpl_rl.optimizer.squad_selection import select_squad
-    from fpl_rl.optimizer.transfer_optimizer import optimize_transfers
-    from fpl_rl.optimizer.types import build_candidate_pool, to_engine_action
-    from fpl_rl.utils.constants import INITIAL_FREE_TRANSFERS, STARTING_BUDGET
+    from fpl_optimizer.data.downloader import DEFAULT_DATA_DIR
+    from fpl_optimizer.data.loader import SeasonDataLoader
+    from fpl_optimizer.engine.engine import FPLGameEngine
+    from fpl_optimizer.engine.state import ChipState, EngineAction, GameState, PlayerSlot, Squad
+    from fpl_optimizer.optimizer.squad_selection import select_squad
+    from fpl_optimizer.optimizer.transfer_optimizer import optimize_transfers
+    from fpl_optimizer.optimizer.types import build_candidate_pool, to_engine_action
+    from fpl_optimizer.utils.constants import INITIAL_FREE_TRANSFERS, STARTING_BUDGET
 
     loader = SeasonDataLoader(HOLDOUT, DEFAULT_DATA_DIR)
     engine = FPLGameEngine(loader)
@@ -171,9 +171,9 @@ def run_optimizer(predictions, label, max_xfers=None):
 
 
 def main():
-    from fpl_rl.data.downloader import DEFAULT_DATA_DIR
-    from fpl_rl.prediction.id_resolver import IDResolver
-    from fpl_rl.prediction.feature_pipeline import FeaturePipeline
+    from fpl_optimizer.data.downloader import DEFAULT_DATA_DIR
+    from fpl_optimizer.prediction.id_resolver import IDResolver
+    from fpl_optimizer.prediction.feature_pipeline import FeaturePipeline
 
     data_dir = DEFAULT_DATA_DIR.parent
     all_seasons = TRAIN_SEASONS + [HOLDOUT]

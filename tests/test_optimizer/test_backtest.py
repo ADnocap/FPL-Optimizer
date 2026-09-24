@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import pytest
 
-from fpl_rl.optimizer.backtest import (
+from fpl_optimizer.optimizer.backtest import (
     BacktestResult,
     GWResult,
     SeasonBacktester,
     _optimizer_result_to_game_state,
 )
-from fpl_rl.optimizer.squad_selection import select_squad
-from fpl_rl.optimizer.types import build_candidate_pool
-from fpl_rl.utils.constants import STARTING_BUDGET
+from fpl_optimizer.optimizer.squad_selection import select_squad
+from fpl_optimizer.optimizer.types import build_candidate_pool
+from fpl_optimizer.utils.constants import STARTING_BUDGET
 
 
 class TestSeasonBacktester:

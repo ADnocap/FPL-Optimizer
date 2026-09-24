@@ -30,7 +30,7 @@ and compare objective values. Sanity check vs FPL's own EP: `--ep`.
    copy(JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith('oidc.user:')))).refresh_token)
    ```
    Paste into `.env` as `FPL_REFRESH_TOKEN=...`. Token rotation is handled
-   automatically (`src/fpl_rl/live/auth.py`). If refresh ever 400/401s,
+   automatically (`src/fpl_optimizer/live/auth.py`). If refresh ever 400/401s,
    re-extract from a fresh browser login.
    *Caveat: PL competition T&Cs void "script-generated entries" (prize
    eligibility, not bans — no documented ban for automating your own account).
@@ -105,4 +105,3 @@ first-half chips die at the GW19 deadline.
 2. **Bonus/BPS module**: 2026-27 BPS overhaul not modeled explicitly (only via
    realized totals in training data).
 3. **Price-change modeling**: selling-price management is reactive, not planned.
-4. RL agent: research path only; retrain only if it beats MILP on holdout.

@@ -2,7 +2,7 @@
 
 import pytest
 
-from fpl_rl.engine.constraints import (
+from fpl_optimizer.engine.constraints import (
     can_substitute,
     check_club_limits,
     get_formation,
@@ -10,8 +10,8 @@ from fpl_rl.engine.constraints import (
     is_valid_squad,
     is_valid_squad_composition,
 )
-from fpl_rl.engine.state import PlayerSlot, Squad
-from fpl_rl.utils.constants import VALID_FORMATIONS, Position
+from fpl_optimizer.engine.state import PlayerSlot, Squad
+from fpl_optimizer.utils.constants import VALID_FORMATIONS, Position
 
 
 def _make_player(eid: int, pos: Position) -> PlayerSlot:

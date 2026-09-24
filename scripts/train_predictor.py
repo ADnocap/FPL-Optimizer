@@ -11,7 +11,7 @@ This is the committed, reproducible recipe for the model of record
 (replaces the ad-hoc runs that produced models/no_xp and models/full_pregame).
 Includes the full pre-game feature set with fpl_xp — see EP_FORMULA.md for
 why xP is point-in-time safe (and it is snapshotted live pre-deadline by
-fpl_rl.data.collectors.fpl_live).
+fpl_optimizer.data.collectors.fpl_live).
 
 Usage:
     python scripts/train_predictor.py [--out models/prod_2026-27] [--no-eval]
@@ -92,7 +92,7 @@ def _report(preds: np.ndarray, holdout: pd.DataFrame, label: str) -> dict:
     out = {"mae": mae, "rmse": rmse, "corr": corr, "gw_corr": mean_gw_corr}
     # Outcome-stratified breakdown (Zeros/Blanks/Tickers/Haulers)
     try:
-        from fpl_rl.prediction.stratified_metrics import (
+        from fpl_optimizer.prediction.stratified_metrics import (
             format_report, stratified_metrics,
         )
 
@@ -105,9 +105,9 @@ def _report(preds: np.ndarray, holdout: pd.DataFrame, label: str) -> dict:
 
 
 def main() -> None:
-    from fpl_rl.prediction.feature_pipeline import FeaturePipeline
-    from fpl_rl.prediction.id_resolver import IDResolver
-    from fpl_rl.prediction.model import PointPredictor
+    from fpl_optimizer.prediction.feature_pipeline import FeaturePipeline
+    from fpl_optimizer.prediction.id_resolver import IDResolver
+    from fpl_optimizer.prediction.model import PointPredictor
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=REPO_ROOT / "models" / "prod_2026-27")

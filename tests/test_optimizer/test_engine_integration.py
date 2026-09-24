@@ -4,29 +4,29 @@ from __future__ import annotations
 
 import pytest
 
-from fpl_rl.engine.constraints import (
+from fpl_optimizer.engine.constraints import (
     check_club_limits,
     is_valid_formation,
     is_valid_squad,
     is_valid_squad_composition,
 )
-from fpl_rl.engine.engine import FPLGameEngine
-from fpl_rl.engine.state import (
+from fpl_optimizer.engine.engine import FPLGameEngine
+from fpl_optimizer.engine.state import (
     ChipState,
     GameState,
     PlayerSlot,
     Squad,
 )
-from fpl_rl.optimizer.lineup_selector import select_lineup
-from fpl_rl.optimizer.squad_selection import select_squad
-from fpl_rl.optimizer.transfer_optimizer import optimize_transfers
-from fpl_rl.optimizer.types import (
+from fpl_optimizer.optimizer.lineup_selector import select_lineup
+from fpl_optimizer.optimizer.squad_selection import select_squad
+from fpl_optimizer.optimizer.transfer_optimizer import optimize_transfers
+from fpl_optimizer.optimizer.types import (
     OptimizerResult,
     PlayerCandidate,
     build_candidate_pool,
     to_engine_action,
 )
-from fpl_rl.utils.constants import Position, STARTING_BUDGET
+from fpl_optimizer.utils.constants import Position, STARTING_BUDGET
 
 
 class TestBuildCandidatePool:

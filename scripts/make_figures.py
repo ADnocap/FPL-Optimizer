@@ -69,7 +69,7 @@ def fig1_sota() -> None:
     x = np.arange(len(bins))
     w = 0.26
     fig, ax = plt.subplots(figsize=(8.6, 4.6))
-    b1 = ax.bar(x - w, ours, w, label="FPL-RL (ours)", color=BLUE)
+    b1 = ax.bar(x - w, ours, w, label="FPL-Optimizer (ours)", color=BLUE)
     b2 = ax.bar(x, openfpl, w, label="OpenFPL (best public)", color=ORANGE)
     b3 = ax.bar(x + w, review, w, label="FPL Review (commercial)", color=AQUA)
     for bars in (b1, b2, b3):
@@ -102,7 +102,7 @@ def fig2_kiwi() -> None:
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9.6, 4.2))
     x = np.arange(len(seasons))
     w = 0.34
-    b1 = ax1.bar(x - w / 2, ours_sp, w, label="FPL-RL (ours)", color=BLUE)
+    b1 = ax1.bar(x - w / 2, ours_sp, w, label="FPL-Optimizer (ours)", color=BLUE)
     b2 = ax1.bar(x + w / 2, kiwi_sp, w, label="theFPLkiwi", color=ORANGE)
     _bar_labels(ax1, b1, "{:.3f}")
     _bar_labels(ax1, b2, "{:.3f}")

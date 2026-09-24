@@ -11,7 +11,7 @@ build/
 .venv/
 venv/
 
-# Data (downloaded at runtime — anchored to root so src/fpl_rl/data/ is NOT ignored)
+# Data (downloaded at runtime — anchored to root so src/fpl_optimizer/data/ is NOT ignored)
 /data/
 
 # IDE
@@ -41,7 +41,7 @@ fpl_tb/
 
 # Temp files
 temp_fbref_*.csv
-src/fpl_rl/data-src.zip
+src/fpl_optimizer/data-src.zip
 
 # Other
 colab/*

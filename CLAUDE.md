@@ -8,12 +8,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install in editable mode with dev dependencies
 pip install -e ".[dev]"          # also: .[prediction] .[optimizer] .[data]
 
-# Run all tests (351 as of 2026-08)
+# Run all tests (305 as of 2026-09)
 pytest
 
 # Run one area
-pytest tests/test_engine/ -v     # also: test_env, test_optimizer, test_prediction,
-                                 #       test_training, test_integration
+pytest tests/test_engine/ -v     # also: test_optimizer, test_prediction, test_data
 
 # Run a single test class or method
 pytest tests/test_engine/test_chips.py::TestActivateChip::test_one_chip_per_gw -v
@@ -39,16 +38,12 @@ Retrain the model of record with `python scripts/train_predictor.py`
 
 ## Architecture
 
-`src/fpl_rl/` has 7 subpackages with a strict layering:
+`src/fpl_optimizer/` has 6 subpackages with a strict layering:
 
-**`engine/`** — Pure game logic, **zero Gymnasium dependency**. Stateless:
+**`engine/`** — Pure game logic. Stateless:
 `step(GameState, EngineAction) → (GameState, StepResult)`; never mutates inputs.
 Scoring is a lookup of recorded `total_points` (historical replay — cannot
 simulate an unplayed GW).
-
-**`env/`** — Thin Gymnasium wrappers. `FPLEnv` (18-dim MultiDiscrete) and
-`HybridFPLEnv` (`hybrid_action_space.py`, chip-only `MultiDiscrete([6])`; the MILP
-picks players). Action masking for MaskablePPO.
 
 **`data/`** — `SeasonDataLoader` (pre-indexed `(element_id, gw)` lookups, DGW
 aggregation, cross-season position/team backfill) + `collectors/` for 7 sources:
@@ -61,7 +56,7 @@ feature modules (`features/vaastav|understat|prior_season|opponent|odds|players_
 `id_resolver.py` (element_id ↔ stable code ↔ understat/fbref ids; auto-loads
 `data/id_maps/live_element_code_*.csv` supplements built from bootstrap `code`),
 `model.py` (4 boosters, one per position; NaN-tolerant; selects features by name),
-`integration.py` bridges predictions to the ObservationBuilder.
+`integration.py` pre-computes a season's `(element_id, gw) → xPts` lookup (used by the backtest).
 
 **`optimizer/`** — PuLP MILP suite: `squad_selection.py` (initial 15),
 `transfer_optimizer.py` (weekly transfers vs a GameState: bank, selling prices,
@@ -72,9 +67,6 @@ replay). Solver: PULP_CBC_CMD. Objective is single-GW; no chip scheduling.
 reconstructed purchase/selling prices, FT bank simulation, chips),
 `pool.py` (candidates from bootstrap with availability filtering/scaling),
 `predict.py` (upcoming-GW model predictions).
-
-**`training/`** — `MultiSeasonFPLEnv`, callbacks, RL training infra (research
-path; the operational path is prediction + MILP).
 
 `cluster/` — SLURM scripts for the LaRuche cluster.
 
@@ -89,16 +81,10 @@ entry API ──fetch_entry_state──> GameState (squad/bank/FTs/chips)
 (GameState, candidates) ──optimize_transfers──> transfers/lineup/captain
 ```
 
-### Spaces (RL research path)
-
-- **Action**: `MultiDiscrete([6, 15,50 ×5 pairs, 15, 15, 8, 15, 15, 15, 6])` = 18 dims
-- **Observation**: `Box(1363,)` = 15×24 squad + 50×19 pool + 53 global
-
 ## Important Conventions
 
 - **Prices are in tenths**: `100 = £10.0m`. All price math is integer.
 - **Lineup/bench are indices into `Squad.players`**, not element_ids.
-- **Invalid actions don't crash**: `FPLEnv.step()` catches ValueError → no-op.
 - **Point-in-time discipline**: post-match features come from gw-1; pre-match
   (price, selected, was_home, xP) from the current gw. `ep_this`/`ep_next` is
   point-in-time safe but must be snapshotted in its GW window (see EP_FORMULA.md —

@@ -4,8 +4,8 @@ import logging
 import pandas as pd
 from pathlib import Path
 
-from fpl_rl.data.loader import SeasonDataLoader
-from fpl_rl.optimizer.backtest import SeasonBacktester
+from fpl_optimizer.data.loader import SeasonDataLoader
+from fpl_optimizer.optimizer.backtest import SeasonBacktester
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 

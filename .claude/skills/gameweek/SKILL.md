@@ -33,7 +33,7 @@ description: Run the weekly FPL pre-deadline routine — refresh live data, pred
    bench order, expected points, hit cost if any. Then apply via the API:
    `python scripts/gameweek.py --apply` (dry-run validation), then
    `--apply --yes` to commit for real. Auth is `FPL_REFRESH_TOKEN` in `.env`
-   (auto-rotating; see src/fpl_rl/live/auth.py if it ever needs re-extracting).
+   (auto-rotating; see src/fpl_optimizer/live/auth.py if it ever needs re-extracting).
    When recommending players by name, ALWAYS disambiguate with club + position
    (two Palmers exist: Cole Palmer CHE MID vs Alex Palmer IPS GK).
 

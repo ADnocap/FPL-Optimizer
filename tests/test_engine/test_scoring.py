@@ -2,7 +2,7 @@
 
 import pytest
 
-from fpl_rl.engine.scoring import (
+from fpl_optimizer.engine.scoring import (
     calculate_captain_points,
     calculate_squad_points,
     did_player_play,

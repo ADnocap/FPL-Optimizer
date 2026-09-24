@@ -21,7 +21,7 @@ from pathlib import Path
 # Allow running from project root without install
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from fpl_rl.data.collectors.odds import ODDS_SEASONS, OddsCollector
+from fpl_optimizer.data.collectors.odds import ODDS_SEASONS, OddsCollector
 
 
 def _load_dotenv() -> None:

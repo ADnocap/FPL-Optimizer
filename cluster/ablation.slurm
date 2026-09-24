@@ -9,13 +9,13 @@
 #SBATCH --error=logs/ablation_%j.err
 
 set -e
-cd /gpfs/workdir/dalbanal/fpl-rl
+cd /gpfs/workdir/dalbanal/fpl-optimizer
 
 echo "============================================"
 echo "Predictor Ablation: xP variants"
 echo "Job ID: $SLURM_JOB_ID | Start: $(date)"
 echo "============================================"
 
-/gpfs/workdir/dalbanal/envs/fpl-rl/bin/python scripts/predictor_ablation.py
+/gpfs/workdir/dalbanal/envs/fpl-optimizer/bin/python scripts/predictor_ablation.py
 
 echo "Finished: $(date)"

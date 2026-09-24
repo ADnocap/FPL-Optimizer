@@ -42,10 +42,10 @@ TUNED_PARAMS = {
 
 
 def main():
-    from fpl_rl.data.downloader import DEFAULT_DATA_DIR
-    from fpl_rl.prediction.id_resolver import IDResolver
-    from fpl_rl.prediction.feature_pipeline import FeaturePipeline
-    from fpl_rl.prediction.model import PointPredictor
+    from fpl_optimizer.data.downloader import DEFAULT_DATA_DIR
+    from fpl_optimizer.prediction.id_resolver import IDResolver
+    from fpl_optimizer.prediction.feature_pipeline import FeaturePipeline
+    from fpl_optimizer.prediction.model import PointPredictor
 
     data_dir = DEFAULT_DATA_DIR.parent if DEFAULT_DATA_DIR.name == "raw" else DEFAULT_DATA_DIR
     print(f"Data dir: {data_dir}")
@@ -155,14 +155,14 @@ def main():
     # STEP 7: Run MILP optimizer with new predictions on holdout
     # ================================================================
     print("\n=== STEP 7: Running MILP optimizer with new predictor ===")
-    from fpl_rl.data.loader import SeasonDataLoader
-    from fpl_rl.engine.engine import FPLGameEngine
-    from fpl_rl.engine.state import ChipState, EngineAction, GameState, PlayerSlot, Squad
-    from fpl_rl.optimizer.squad_selection import select_squad
-    from fpl_rl.optimizer.transfer_optimizer import optimize_transfers
-    from fpl_rl.optimizer.types import build_candidate_pool, to_engine_action
-    from fpl_rl.prediction.integration import PredictionIntegrator
-    from fpl_rl.utils.constants import INITIAL_FREE_TRANSFERS, STARTING_BUDGET
+    from fpl_optimizer.data.loader import SeasonDataLoader
+    from fpl_optimizer.engine.engine import FPLGameEngine
+    from fpl_optimizer.engine.state import ChipState, EngineAction, GameState, PlayerSlot, Squad
+    from fpl_optimizer.optimizer.squad_selection import select_squad
+    from fpl_optimizer.optimizer.transfer_optimizer import optimize_transfers
+    from fpl_optimizer.optimizer.types import build_candidate_pool, to_engine_action
+    from fpl_optimizer.prediction.integration import PredictionIntegrator
+    from fpl_optimizer.utils.constants import INITIAL_FREE_TRANSFERS, STARTING_BUDGET
 
     loader = SeasonDataLoader(HOLDOUT, DEFAULT_DATA_DIR)
     engine = FPLGameEngine(loader)

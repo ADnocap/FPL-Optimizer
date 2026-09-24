@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from fpl_rl.prediction.id_resolver import IDResolver
+from fpl_optimizer.prediction.id_resolver import IDResolver
 
 
 @pytest.fixture

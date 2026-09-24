@@ -52,10 +52,10 @@ SEASONS = [
 
 
 def main() -> None:
-    from fpl_rl.prediction.feature_pipeline import FeaturePipeline
-    from fpl_rl.prediction.id_resolver import IDResolver
-    from fpl_rl.prediction.model import PointPredictor
-    from fpl_rl.prediction.stratified_metrics import (
+    from fpl_optimizer.prediction.feature_pipeline import FeaturePipeline
+    from fpl_optimizer.prediction.id_resolver import IDResolver
+    from fpl_optimizer.prediction.model import PointPredictor
+    from fpl_optimizer.prediction.stratified_metrics import (
         format_report, per_gw_spearman, stratified_metrics,
     )
 

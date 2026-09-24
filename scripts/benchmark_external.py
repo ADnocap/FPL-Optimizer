@@ -2,7 +2,7 @@
 """Benchmark our point predictor against external public projections.
 
 Outcome-stratified evaluation (Zeros/Blanks/Tickers/Haulers conditional
-MAE/RMSE, see fpl_rl.prediction.stratified_metrics) of:
+MAE/RMSE, see fpl_optimizer.prediction.stratified_metrics) of:
 
 1. OUR model — expanding-window eval folds (train from 2016-17, val = last
    8 GWs of the last training season, LightGBM params identical to
@@ -43,7 +43,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from fpl_rl.prediction.stratified_metrics import (  # noqa: E402
+from fpl_optimizer.prediction.stratified_metrics import (  # noqa: E402
     OUTCOME_BINS,
     format_report,
     per_gw_spearman,
@@ -146,9 +146,9 @@ def _score(df: pd.DataFrame, pred_col: str, label: str) -> dict:
 # ---------------------------------------------------------------------------
 
 def run_ours(data_dir: Path) -> None:
-    from fpl_rl.prediction.feature_pipeline import FeaturePipeline
-    from fpl_rl.prediction.id_resolver import IDResolver
-    from fpl_rl.prediction.model import PointPredictor
+    from fpl_optimizer.prediction.feature_pipeline import FeaturePipeline
+    from fpl_optimizer.prediction.id_resolver import IDResolver
+    from fpl_optimizer.prediction.model import PointPredictor
 
     print(f"Building features for {len(ALL_SEASONS)} seasons...")
     t0 = time.time()

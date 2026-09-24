@@ -48,16 +48,16 @@ ALL_SEASONS = [
 
 
 def main() -> None:
-    from fpl_rl.data.loader import SeasonDataLoader
-    from fpl_rl.engine.engine import FPLGameEngine
-    from fpl_rl.engine.state import EngineAction, GameState, PlayerSlot, Squad
-    from fpl_rl.optimizer.squad_selection import select_squad
-    from fpl_rl.optimizer.transfer_optimizer import optimize_transfers
-    from fpl_rl.optimizer.types import build_candidate_pool, to_engine_action
-    from fpl_rl.prediction.feature_pipeline import FeaturePipeline
-    from fpl_rl.prediction.id_resolver import IDResolver
-    from fpl_rl.prediction.model import PointPredictor
-    from fpl_rl.utils.constants import INITIAL_FREE_TRANSFERS, STARTING_BUDGET
+    from fpl_optimizer.data.loader import SeasonDataLoader
+    from fpl_optimizer.engine.engine import FPLGameEngine
+    from fpl_optimizer.engine.state import EngineAction, GameState, PlayerSlot, Squad
+    from fpl_optimizer.optimizer.squad_selection import select_squad
+    from fpl_optimizer.optimizer.transfer_optimizer import optimize_transfers
+    from fpl_optimizer.optimizer.types import build_candidate_pool, to_engine_action
+    from fpl_optimizer.prediction.feature_pipeline import FeaturePipeline
+    from fpl_optimizer.prediction.id_resolver import IDResolver
+    from fpl_optimizer.prediction.model import PointPredictor
+    from fpl_optimizer.utils.constants import INITIAL_FREE_TRANSFERS, STARTING_BUDGET
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--season", default="2025-26")

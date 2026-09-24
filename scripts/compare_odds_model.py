@@ -26,11 +26,11 @@ import pandas as pd
 # Allow running from project root without install
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from fpl_rl.prediction.evaluation import TemporalCV, ALL_SEASONS, HOLDOUT_SEASON
-from fpl_rl.prediction.feature_pipeline import FeaturePipeline
-from fpl_rl.prediction.features.odds import FEATURE_COLS as ODDS_FEATURE_COLS
-from fpl_rl.prediction.id_resolver import IDResolver
-from fpl_rl.prediction.model import PointPredictor, POSITIONS
+from fpl_optimizer.prediction.evaluation import TemporalCV, ALL_SEASONS, HOLDOUT_SEASON
+from fpl_optimizer.prediction.feature_pipeline import FeaturePipeline
+from fpl_optimizer.prediction.features.odds import FEATURE_COLS as ODDS_FEATURE_COLS
+from fpl_optimizer.prediction.id_resolver import IDResolver
+from fpl_optimizer.prediction.model import PointPredictor, POSITIONS
 
 logger = logging.getLogger(__name__)
 

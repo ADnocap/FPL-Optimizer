@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from fpl_rl.optimizer.lineup_selector import select_lineup
-from fpl_rl.optimizer.types import PlayerCandidate
-from fpl_rl.utils.constants import Position, VALID_FORMATIONS
+from fpl_optimizer.optimizer.lineup_selector import select_lineup
+from fpl_optimizer.optimizer.types import PlayerCandidate
+from fpl_optimizer.utils.constants import Position, VALID_FORMATIONS
 
 
 class TestSelectLineup:

@@ -18,9 +18,9 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from fpl_rl.data.downloader import DEFAULT_DATA_DIR
-from fpl_rl.data.loader import SeasonDataLoader
-from fpl_rl.prediction.integration import PredictionIntegrator
+from fpl_optimizer.data.downloader import DEFAULT_DATA_DIR
+from fpl_optimizer.data.loader import SeasonDataLoader
+from fpl_optimizer.prediction.integration import PredictionIntegrator
 
 SEASON = "2024-25"
 

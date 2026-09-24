@@ -8,9 +8,9 @@
 set -e
 
 REMOTE="dalbanal@ruche.mesocentre.universite-paris-saclay.fr"
-REMOTE_DIR="/gpfs/workdir/dalbanal/fpl-rl"
+REMOTE_DIR="/gpfs/workdir/dalbanal/fpl-optimizer"
 
-echo "Uploading FPL-RL to ruche..."
+echo "Uploading FPL-Optimizer to ruche..."
 echo "Remote: $REMOTE:$REMOTE_DIR"
 echo ""
 
@@ -58,4 +58,4 @@ echo "Next steps:"
 echo "  ssh ruche"
 echo "  cd $REMOTE_DIR"
 echo "  bash cluster/setup.sh    # first time only"
-echo "  sbatch cluster/train.slurm"
+echo "  sbatch cluster/retrain_predictor.slurm"

@@ -2,8 +2,8 @@
 
 import pytest
 
-from fpl_rl.engine.engine import FPLGameEngine
-from fpl_rl.engine.state import EngineAction, GameState
+from fpl_optimizer.engine.engine import FPLGameEngine
+from fpl_optimizer.engine.state import EngineAction, GameState
 
 
 class TestEngineStep:

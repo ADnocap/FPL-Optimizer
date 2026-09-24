@@ -14,9 +14,9 @@ import argparse
 
 import requests
 
-from fpl_rl.optimizer.squad_selection import select_squad
-from fpl_rl.optimizer.types import PlayerCandidate
-from fpl_rl.utils.constants import Position
+from fpl_optimizer.optimizer.squad_selection import select_squad
+from fpl_optimizer.optimizer.types import PlayerCandidate
+from fpl_optimizer.utils.constants import Position
 
 BOOTSTRAP_URL = "https://fantasy.premierleague.com/api/bootstrap-static/"
 HEADERS = {"User-Agent": "Mozilla/5.0"}

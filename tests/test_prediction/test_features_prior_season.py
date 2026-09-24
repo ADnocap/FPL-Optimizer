@@ -9,12 +9,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fpl_rl.prediction.features.prior_season import (
+from fpl_optimizer.prediction.features.prior_season import (
     PRIOR_FEATURE_COLUMNS,
     PREV_SEASON,
     compute_prior_season_features,
 )
-from fpl_rl.prediction.id_resolver import IDResolver
+from fpl_optimizer.prediction.id_resolver import IDResolver
 
 
 # -------------------------------------------------------------------------

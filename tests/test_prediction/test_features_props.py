@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fpl_rl.prediction.features.props import (
+from fpl_optimizer.prediction.features.props import (
     FEATURE_COLS,
     _SOT_OVERROUND,
     compute_props_features,

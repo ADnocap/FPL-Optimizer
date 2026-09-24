@@ -11,15 +11,15 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from fpl_rl.data.downloader import DEFAULT_DATA_DIR
-from fpl_rl.data.loader import SeasonDataLoader
-from fpl_rl.engine.engine import FPLGameEngine
-from fpl_rl.engine.state import ChipState, EngineAction, GameState, PlayerSlot, Squad
-from fpl_rl.optimizer.squad_selection import select_squad
-from fpl_rl.optimizer.transfer_optimizer import optimize_transfers
-from fpl_rl.optimizer.types import build_candidate_pool, to_engine_action
-from fpl_rl.prediction.integration import PredictionIntegrator
-from fpl_rl.utils.constants import INITIAL_FREE_TRANSFERS, STARTING_BUDGET, Position
+from fpl_optimizer.data.downloader import DEFAULT_DATA_DIR
+from fpl_optimizer.data.loader import SeasonDataLoader
+from fpl_optimizer.engine.engine import FPLGameEngine
+from fpl_optimizer.engine.state import ChipState, EngineAction, GameState, PlayerSlot, Squad
+from fpl_optimizer.optimizer.squad_selection import select_squad
+from fpl_optimizer.optimizer.transfer_optimizer import optimize_transfers
+from fpl_optimizer.optimizer.types import build_candidate_pool, to_engine_action
+from fpl_optimizer.prediction.integration import PredictionIntegrator
+from fpl_optimizer.utils.constants import INITIAL_FREE_TRANSFERS, STARTING_BUDGET, Position
 
 
 SEASON = "2024-25"

@@ -34,12 +34,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from fpl_rl.data.collectors.fpl_live import LiveFPLCollector
-from fpl_rl.live.pool import build_live_candidates
-from fpl_rl.live.predict import ep_reference, predict_upcoming_gw
-from fpl_rl.optimizer.squad_selection import select_squad
-from fpl_rl.optimizer.transfer_optimizer import optimize_transfers
-from fpl_rl.utils.constants import CURRENT_SEASON
+from fpl_optimizer.data.collectors.fpl_live import LiveFPLCollector
+from fpl_optimizer.live.pool import build_live_candidates
+from fpl_optimizer.live.predict import ep_reference, predict_upcoming_gw
+from fpl_optimizer.optimizer.squad_selection import select_squad
+from fpl_optimizer.optimizer.transfer_optimizer import optimize_transfers
+from fpl_optimizer.utils.constants import CURRENT_SEASON
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("gameweek")
@@ -138,7 +138,7 @@ def main() -> None:
     # Fail fast on auth BEFORE any expensive work: refresh tokens can be
     # revoked by a browser/app login on the same FPL session.
     if args.apply:
-        from fpl_rl.live.auth import FPLAuth, FPLAuthError
+        from fpl_optimizer.live.auth import FPLAuth, FPLAuthError
 
         try:
             FPLAuth().access_token()
@@ -163,7 +163,7 @@ def main() -> None:
     # 0. Fetch live team state FIRST (fail fast, before expensive data work)
     entry_state = None
     if args.team_id is not None and not args.fresh_squad:
-        from fpl_rl.live.entry import fetch_entry_state
+        from fpl_optimizer.live.entry import fetch_entry_state
 
         try:
             entry_state = fetch_entry_state(args.team_id, bootstrap)
@@ -288,8 +288,8 @@ def main() -> None:
     # 5. Optional API submission
     applied = False
     if args.apply and args.team_id:
-        from fpl_rl.live.auth import FPLAuth
-        from fpl_rl.live.executor import (
+        from fpl_optimizer.live.auth import FPLAuth
+        from fpl_optimizer.live.executor import (
             apply_lineup, apply_transfers, get_me, get_my_team,
         )
 

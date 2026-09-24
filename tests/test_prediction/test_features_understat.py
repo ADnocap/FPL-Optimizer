@@ -8,8 +8,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from fpl_rl.prediction.id_resolver import IDResolver
-from fpl_rl.prediction.features.understat import (
+from fpl_optimizer.prediction.id_resolver import IDResolver
+from fpl_optimizer.prediction.features.understat import (
     FEATURE_COLUMNS,
     compute_understat_features,
 )

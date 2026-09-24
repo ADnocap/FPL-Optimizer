@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from fpl_rl.engine.state import ChipState, GameState, PlayerSlot, Squad
-from fpl_rl.optimizer.transfer_optimizer import optimize_transfers
-from fpl_rl.optimizer.types import PlayerCandidate
-from fpl_rl.utils.constants import (
+from fpl_optimizer.engine.state import ChipState, GameState, PlayerSlot, Squad
+from fpl_optimizer.optimizer.transfer_optimizer import optimize_transfers
+from fpl_optimizer.optimizer.types import PlayerCandidate
+from fpl_optimizer.utils.constants import (
     MAX_PER_CLUB,
     POSITION_LIMITS,
     STARTING_BUDGET,

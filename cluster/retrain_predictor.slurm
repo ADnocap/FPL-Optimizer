@@ -11,8 +11,8 @@
 set -e
 
 WORKDIR=/gpfs/workdir/dalbanal
-PROJECT=$WORKDIR/fpl-rl
-PYTHON=$WORKDIR/envs/fpl-rl/bin/python
+PROJECT=$WORKDIR/fpl-optimizer
+PYTHON=$WORKDIR/envs/fpl-optimizer/bin/python
 cd $PROJECT
 
 echo "============================================"

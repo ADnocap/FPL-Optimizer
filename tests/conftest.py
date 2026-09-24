@@ -1,4 +1,4 @@
-"""Shared test fixtures for FPL-RL tests."""
+"""Shared test fixtures for FPL-Optimizer tests."""
 
 from __future__ import annotations
 
@@ -7,14 +7,14 @@ from pathlib import Path
 
 import pytest
 
-from fpl_rl.data.loader import SeasonDataLoader
-from fpl_rl.engine.state import (
+from fpl_optimizer.data.loader import SeasonDataLoader
+from fpl_optimizer.engine.state import (
     ChipState,
     GameState,
     PlayerSlot,
     Squad,
 )
-from fpl_rl.utils.constants import Position, STARTING_BUDGET
+from fpl_optimizer.utils.constants import Position, STARTING_BUDGET
 
 # Path to hand-crafted test data
 TEST_DATA_DIR = Path(__file__).parent / "test_data"
@@ -47,7 +47,7 @@ def loader(test_data_dir: Path) -> SeasonDataLoader:
         self.data_dir = data_dir
         self._season_dir = data_dir / season
         import pandas as pd
-        from fpl_rl.data.schemas import ELEMENT_TYPE_TO_POSITION, SEASONS_WITH_EXPECTED, SEASONS_WITH_POSITION
+        from fpl_optimizer.data.schemas import ELEMENT_TYPE_TO_POSITION, SEASONS_WITH_EXPECTED, SEASONS_WITH_POSITION
         self._merged_gw = self._load_merged_gw()
         self._player_info = self._load_player_info()
         self._fixtures = self._load_fixtures()

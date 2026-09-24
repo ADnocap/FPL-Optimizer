@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fpl_rl.prediction.evaluation import TemporalCV, ALL_SEASONS, HOLDOUT_SEASON
+from fpl_optimizer.prediction.evaluation import TemporalCV, ALL_SEASONS, HOLDOUT_SEASON
 
 
 def _make_cv_df(seasons: list[str], n_per_gw: int = 10, n_gws: int = 20) -> pd.DataFrame:

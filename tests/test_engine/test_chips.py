@@ -2,14 +2,14 @@
 
 import pytest
 
-from fpl_rl.engine.chips import (
+from fpl_optimizer.engine.chips import (
     activate_chip,
     clear_active_chip,
     handle_gw19_expiry,
     revert_free_hit,
     validate_chip,
 )
-from fpl_rl.engine.state import ChipState, GameState
+from fpl_optimizer.engine.state import ChipState, GameState
 
 
 class TestChipAvailability:

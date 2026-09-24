@@ -2,13 +2,13 @@
 
 import pytest
 
-from fpl_rl.engine.transfers import (
+from fpl_optimizer.engine.transfers import (
     apply_transfers,
     bank_free_transfers,
     calculate_selling_price,
     calculate_transfer_cost,
 )
-from fpl_rl.utils.constants import MAX_FREE_TRANSFERS, TRANSFER_HIT_COST
+from fpl_optimizer.utils.constants import MAX_FREE_TRANSFERS, TRANSFER_HIT_COST
 
 
 class TestSellingPrice:

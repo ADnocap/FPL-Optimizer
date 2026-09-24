@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from fpl_rl.data.collectors.fotmob import (
+from fpl_optimizer.data.collectors.fotmob import (
     FotMobCollector,
     STAT_KEYS,
     _parse_stat_response,

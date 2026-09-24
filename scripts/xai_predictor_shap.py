@@ -74,15 +74,15 @@ def _group_color(group: str) -> str:
 
 
 def load_predictor(model_dir: Path):
-    from fpl_rl.prediction.model import PointPredictor
+    from fpl_optimizer.prediction.model import PointPredictor
     log.info("Loading predictor from %s", model_dir)
     return PointPredictor.load(model_dir)
 
 
 def build_features(data_dir: Path, season: str) -> pd.DataFrame:
     """Run FeaturePipeline for one season. Returns raw feature DataFrame."""
-    from fpl_rl.prediction.id_resolver import IDResolver
-    from fpl_rl.prediction.feature_pipeline import FeaturePipeline
+    from fpl_optimizer.prediction.id_resolver import IDResolver
+    from fpl_optimizer.prediction.feature_pipeline import FeaturePipeline
 
     log.info("Building features for %s…", season)
     resolver = IDResolver(data_dir)
@@ -368,7 +368,7 @@ def main():
     if args.data_dir:
         data_dir = Path(args.data_dir)
     else:
-        from fpl_rl.data.downloader import DEFAULT_DATA_DIR
+        from fpl_optimizer.data.downloader import DEFAULT_DATA_DIR
         data_dir = DEFAULT_DATA_DIR.parent if DEFAULT_DATA_DIR.name == "raw" else DEFAULT_DATA_DIR
 
     # ── Load model ────────────────────────────────────────────────────────────

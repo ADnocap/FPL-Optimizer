@@ -8,8 +8,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from fpl_rl.prediction.id_resolver import IDResolver
-from fpl_rl.prediction.feature_pipeline import FeaturePipeline
+from fpl_optimizer.prediction.id_resolver import IDResolver
+from fpl_optimizer.prediction.feature_pipeline import FeaturePipeline
 
 
 def _make_merged_gw(rows: list[dict]) -> pd.DataFrame:

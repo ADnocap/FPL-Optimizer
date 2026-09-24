@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fpl_rl.prediction.model import PointPredictor, POSITIONS
+from fpl_optimizer.prediction.model import PointPredictor, POSITIONS
 
 
 def _make_train_df(n_per_pos: int = 50, n_features: int = 10) -> pd.DataFrame:

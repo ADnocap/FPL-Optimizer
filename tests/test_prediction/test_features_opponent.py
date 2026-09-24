@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fpl_rl.prediction.features.opponent import (
+from fpl_optimizer.prediction.features.opponent import (
     FEATURE_COLS,
     compute_opponent_features,
 )

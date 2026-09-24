@@ -27,7 +27,7 @@ for early stopping) and evaluates every config on the 2025-26 season:
 
 Metrics per config (on 2025-26): MAE, RMSE, mean per-GW Spearman, and
 Zeros/Blanks/Tickers/Haulers conditional RMSE (uses
-fpl_rl.prediction.stratified_metrics when available, else the inline
+fpl_optimizer.prediction.stratified_metrics when available, else the inline
 fallback below with strata zeros<=0 / blanks 1-3 / tickers 4-9 /
 haulers>=10 points).
 
@@ -135,10 +135,10 @@ def _stratified_rmse_inline(actual: np.ndarray, preds: np.ndarray) -> dict[str, 
 
 
 def _resolve_stratified_rmse():
-    """Prefer fpl_rl.prediction.stratified_metrics (Task B) when importable
+    """Prefer fpl_optimizer.prediction.stratified_metrics (Task B) when importable
     and call-compatible; otherwise use the inline fallback."""
     try:
-        from fpl_rl.prediction import stratified_metrics as sm
+        from fpl_optimizer.prediction import stratified_metrics as sm
     except ImportError:
         return _stratified_rmse_inline, "inline"
 
@@ -206,8 +206,8 @@ def build_or_load_features(
             return df
         print(f"Cache season mismatch ({cached}), rebuilding...")
 
-    from fpl_rl.prediction.feature_pipeline import FeaturePipeline
-    from fpl_rl.prediction.id_resolver import IDResolver
+    from fpl_optimizer.prediction.feature_pipeline import FeaturePipeline
+    from fpl_optimizer.prediction.id_resolver import IDResolver
 
     print(f"Building features for {len(seasons)} seasons...")
     t0 = time.time()
@@ -313,7 +313,7 @@ def run_config(
     shift: float = 0.0,
 ) -> dict:
     """Train one config and score it on the eval season."""
-    from fpl_rl.prediction.model import PointPredictor
+    from fpl_optimizer.prediction.model import PointPredictor
 
     print(f"\n--- Config: {name} ---")
     print(f"  objective={params['objective']}"

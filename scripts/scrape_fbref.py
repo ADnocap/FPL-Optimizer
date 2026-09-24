@@ -24,7 +24,7 @@ from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from fpl_rl.utils.constants import AVAILABLE_SEASONS
+from fpl_optimizer.utils.constants import AVAILABLE_SEASONS
 
 logger = logging.getLogger(__name__)
 
