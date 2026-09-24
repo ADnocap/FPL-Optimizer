@@ -99,6 +99,19 @@ class IDResolver:
                     self._code_to_name[code] = str(row.get("web_name", ""))
             logger.info("IDResolver: live supplement %s added %d mappings", season, n_new)
 
+        # Understat IDs for players the master map lacks (new signings,
+        # promoted clubs): data/id_maps/live_understat_ids_{season}.csv written
+        # by data.collectors.understat_ids. Never overrides the master map.
+        for supp_path in sorted((data_dir / "id_maps").glob("live_understat_ids_*.csv")):
+            supp = pd.read_csv(supp_path)
+            n_new = 0
+            for code, us_id in zip(supp["code"], supp["understat"]):
+                if pd.notna(us_id) and int(code) not in self._code_to_understat:
+                    self._code_to_understat[int(code)] = int(us_id)
+                    n_new += 1
+            logger.info("IDResolver: understat supplement %s added %d IDs",
+                        supp_path.stem.replace("live_understat_ids_", ""), n_new)
+
         logger.info(
             "IDResolver: %d codes, %d understat, %d fbref mappings",
             len(self._code_to_name),

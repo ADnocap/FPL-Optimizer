@@ -151,6 +151,45 @@ def _sync_with_my_team(gs, my_team: dict) -> list[str]:
     return notes
 
 
+def _refresh_side_sources(data_dir: Path, season: str) -> None:
+    """Understat per-match data and h2h odds for the live season.
+
+    The model was trained with both populated; serving them empty (as in
+    GW1-5 2026-27) cost most of the top-of-ranking accuracy. Failures are
+    non-fatal but loud — the data-health block will flag the gap.
+    """
+    try:
+        from fpl_optimizer.data.collectors.understat import UnderstatCollector
+        from fpl_optimizer.data.collectors.understat_ids import (
+            build_understat_id_supplement,
+        )
+
+        UnderstatCollector(data_dir=data_dir).refresh_live_season(season)
+        build_understat_id_supplement(data_dir, season)
+    except Exception as exc:
+        print(f"WARNING: understat refresh failed ({exc}) — understat features "
+              "will be stale or empty this GW.")
+    try:
+        from collect_football_data_odds import build_season_odds
+
+        build_season_odds(season, data_dir, include_upcoming=True)
+    except Exception as exc:
+        print(f"WARNING: h2h odds refresh failed ({exc}) — odds features may be "
+              "empty for the upcoming GW.")
+
+
+def _write_decision_log(data_dir: Path, season: str, gw: int, record: dict) -> Path:
+    """Persist what the model saw and recommended (post-mortems need it)."""
+    import json
+    from datetime import datetime, timezone
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    out = data_dir / "live" / season / "decisions" / f"gw{gw}_{stamp}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(record, indent=1, default=str), encoding="utf-8")
+    return out
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--team-id", type=int, default=None)
@@ -291,6 +330,7 @@ def main() -> None:
         collector.build_season_files(
             bootstrap=bootstrap, fixtures=fixtures, include_upcoming=True
         )
+        _refresh_side_sources(args.data_dir, args.season)
         # Live player-prop odds (feeds props_* features; optional — needs
         # ODDS_API_KEY with prop-market access; ~40 credits per GW)
         try:
@@ -304,6 +344,7 @@ def main() -> None:
     # FPL's EP already embeds chance_of_playing (EP_FORMULA.md), so the pool
     # must not scale by availability a second time in EP mode.
     using_ep = args.ep
+    health: list[str] = []
     horizon_preds = None
     horizon_gws: list[int] = []
     if args.horizon is not None and args.team_id is not None:
@@ -311,7 +352,8 @@ def main() -> None:
 
         horizon_gws = list(range(gw, min(gw + args.horizon, 39)))
         horizon_preds = predict_horizon_live(
-            args.data_dir, args.model_dir, args.season, gw, len(horizon_gws)
+            args.data_dir, args.model_dir, args.season, gw, len(horizon_gws),
+            health=health,
         )
         if horizon_preds.empty:
             print("ERROR: no horizon predictions — cannot run the multi-GW planner.")
@@ -325,7 +367,7 @@ def main() -> None:
         print("Predictions: FPL EP (ep_next)")
     else:
         predictions = predict_upcoming_gw(
-            args.data_dir, args.model_dir, args.season, gw
+            args.data_dir, args.model_dir, args.season, gw, health=health
         )
         if not predictions:
             print("WARNING: model produced no predictions — falling back to EP.")
@@ -334,6 +376,14 @@ def main() -> None:
         else:
             print(f"Predictions: {args.model_dir.name} model "
                   f"({len(predictions)} players)")
+
+    if health:
+        print("\n!!! DATA HEALTH — the model will see these features empty/constant:")
+        for w in health:
+            print(f"    - {w}")
+        print("    Fix the data (or read the recommendation with caution).\n")
+    else:
+        print("Data health: all model features populated like training.")
 
     elements = {el["id"]: el for el in bootstrap["elements"]}
     teams = {t["id"]: t["short_name"] for t in bootstrap["teams"]}
@@ -456,6 +506,34 @@ def main() -> None:
     if chip_used:
         print(f"\nChip {'planned' if horizon_preds is not None else 'evaluated'}"
               f" this GW: {chip_used}")
+
+    log_path = _write_decision_log(args.data_dir, args.season, gw, {
+        "gw": gw,
+        "deadline": event["deadline_time"],
+        "model_dir": str(args.model_dir),
+        "mode": ("ep" if using_ep else "model")
+                + (f"+horizon{args.horizon}" if horizon_preds is not None else ""),
+        "args": {k: v for k, v in vars(args).items() if k not in ("yes",)},
+        "data_health": health,
+        "team_state": None if entry_state is None else {
+            "free_transfers": entry_state.game_state.free_transfers,
+            "bank": entry_state.game_state.bank,
+            "squad": [p.element_id for p in entry_state.game_state.squad.players],
+        },
+        "predictions": {int(k): round(float(v), 3) for k, v in predictions.items()},
+        "transfers_out": list(getattr(result, "transfers_out", []) or []),
+        "transfers_in": list(getattr(result, "transfers_in", []) or []),
+        "hit_cost": getattr(result, "hit_cost", 0),
+        "lineup": list(result.lineup_element_ids),
+        "bench": list(result.bench_element_ids),
+        "captain": result.captain_id,
+        "vice": result.vice_captain_id,
+        "captain_override": args.captain,
+        "vice_override": args.vice,
+        "chip": chip_used,
+        "expected_xi_points": result.objective_value,
+    })
+    print(f"\nDecision log: {log_path}")
 
     # 5. Optional API submission
     applied = False

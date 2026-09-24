@@ -4,9 +4,11 @@ Each player has a JSON file at data/understat/players/{season}/{understat_id}.js
 containing a list of match dicts with fields like xG, xA, npxG, shots, key_passes,
 date, etc.
 
-Temporal alignment: for each GW, only matches with date < the GW kickoff date are
-included. This prevents lookahead bias since we only use information available
-before the GW deadline.
+Temporal alignment: for each GW, only matches played on a calendar day strictly
+before the day of the GW's first kickoff are included. Understat dates are
+day-resolution (midnight), so comparing them with the first-kickoff TIMESTAMP
+let every match played on that same day (i.e. the GW's own matches) through —
+a same-GW leak fixed 2026-09-25.
 
 All rolling windows use ``min_periods=1`` so that features are produced even when
 a player has fewer matches than the window size.
@@ -109,7 +111,7 @@ def compute_understat_features(
     gw_dates : pd.Series
         Series indexed by GW number (int), values are datetime (earliest
         kickoff for that GW). Used for temporal alignment: only understat
-        matches with date < gw_date are included.
+        matches on a day strictly before the GW's first-kickoff day are included.
 
     Returns
     -------
@@ -172,8 +174,8 @@ def compute_understat_features(
 
         # For each GW, filter matches before GW date and compute rolling
         for gw in gw_numbers:
-            gw_date = pd.Timestamp(gw_dates[gw])
-            eligible = matches_df[matches_df["date"] < gw_date]
+            gw_day = pd.Timestamp(gw_dates[gw]).normalize()
+            eligible = matches_df[matches_df["date"].dt.normalize() < gw_day]
 
             row = {"code": code, "GW": gw}
 

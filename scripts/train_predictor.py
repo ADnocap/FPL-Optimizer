@@ -161,6 +161,15 @@ def main() -> None:
         shutil.rmtree(staging)
     staging.mkdir(parents=True)
     prod.save(staging)
+    # Serving reference for the live data-health check (live/predict.py):
+    # non-null rate / std per feature on recent rows of playing players.
+    from fpl_optimizer.live.predict import SERVING_REFERENCE_FILE, serving_reference
+
+    recent = df[df["season"].isin(PROD_SEASONS[-3:]) & (df["GW"] >= 2)]
+    (staging / SERVING_REFERENCE_FILE).write_text(
+        json.dumps(serving_reference(recent, prod._feature_names), indent=1),
+        encoding="utf-8",
+    )
     metrics["train_seasons"] = PROD_SEASONS
     metrics["params"] = PARAMS
     (staging / "training_report.json").write_text(

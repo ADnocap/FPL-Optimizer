@@ -10,11 +10,14 @@ API endpoints:
 - ``teams.csv``           <- bootstrap-static teams
 - ``fixtures.csv``        <- fixtures/
 - ``cleaned_players.csv`` <- bootstrap-static elements (subset)
-- ``xP`` column           <- pre-deadline bootstrap snapshots (ep_next/ep_this)
+- ``xP`` column           <- ep_this of the snapshot taken while that GW was
+                             current (vaastav semantics: post-GW recomputed;
+                             only its previous-GW lag is a model feature)
 
 Point-in-time rules:
-- ``snapshot_predeadline()`` must run BEFORE each GW deadline: ``ep`` (xP),
-  set-piece orders, and chance_of_playing are unrecoverable afterwards.
+- ``snapshot_predeadline()`` must run BEFORE each GW deadline: ``ep_this``
+  (the previous GW's xP), set-piece orders, and chance_of_playing are
+  unrecoverable afterwards.
 - ``build_season_files(include_upcoming=True)`` appends synthetic rows for the
   upcoming GW (stats zeroed, price/ownership/fixture real) so FeaturePipeline
   can produce pre-deadline predictions.  The synthetic rows are replaced by
@@ -249,32 +252,47 @@ class LiveFPLCollector(BaseCollector):
         )
 
     def _load_snapshot_xp(self) -> dict[tuple[int, int], float]:
-        """Build (element_id, gw) -> xP from all pre-deadline snapshots."""
+        """Build (element_id, gw) -> xP with vaastav's semantics.
+
+        vaastav's ``xP`` for GW c is FPL's ``ep_this`` read while c is the
+        *current* event, i.e. after its deadline — by then FPL has recomputed
+        it from form that includes GW c's own points. The model therefore only
+        uses the previous GW's value (``fpl_xp_lag``). To keep train/serve
+        parity, GW c's xP here is the ``ep_this`` of the latest snapshot whose
+        current event is c: our pre-deadline snapshot for GW c+1 is taken
+        inside that window, so at every deadline the lag is the exact analog
+        of the historical feature. Snapshots are ordered by capture time so a
+        later capture in the same window wins.
+        """
         xp: dict[tuple[int, int], float] = {}
         if not self.snapshot_dir.exists():
             return xp
-        for boot_path in sorted(self.snapshot_dir.glob("gw*_bootstrap.json")):
+        snaps = []
+        for boot_path in self.snapshot_dir.glob("gw*_bootstrap.json"):
             gw_str = boot_path.stem.replace("gw", "").replace("_bootstrap", "")
-            try:
-                gw = int(gw_str)
-            except ValueError:
+            if not gw_str.isdigit():
                 continue
-            meta_path = self.snapshot_dir / f"gw{gw}_meta.json"
-            ep_field = "ep_next"
+            taken = ""
+            meta_path = self.snapshot_dir / f"gw{gw_str}_meta.json"
             if meta_path.exists():
-                meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                ep_field = meta.get("ep_field", "ep_next")
-            else:
-                # Snapshot taken without meta (e.g. manual): infer from events
-                boot = json.loads(boot_path.read_text(encoding="utf-8"))
-                for ev in boot.get("events", []):
-                    if ev["id"] == gw:
-                        ep_field = "ep_this" if ev.get("is_current") else "ep_next"
-                        break
-            boot = json.loads(boot_path.read_text(encoding="utf-8"))
-            for el in boot.get("elements", []):
                 try:
-                    xp[(el["id"], gw)] = float(el.get(ep_field) or 0.0)
+                    taken = json.loads(meta_path.read_text(encoding="utf-8")).get("taken_utc", "")
+                except (json.JSONDecodeError, OSError):
+                    pass
+            snaps.append((taken, int(gw_str), boot_path))
+        for _, _, boot_path in sorted(snaps):
+            boot = json.loads(boot_path.read_text(encoding="utf-8"))
+            current = next(
+                (ev["id"] for ev in boot.get("events", []) if ev.get("is_current")), None
+            )
+            if current is None:  # pre-season: there is no current GW yet
+                continue
+            for el in boot.get("elements", []):
+                val = el.get("ep_this")
+                if val is None:
+                    continue
+                try:
+                    xp[(el["id"], current)] = float(val)
                 except (TypeError, ValueError):
                     pass
         return xp
@@ -429,7 +447,9 @@ class LiveFPLCollector(BaseCollector):
                                 "name": meta["name"],
                                 "position": meta["position"],
                                 "team": meta["team"],
-                                "xP": xp_map.get((el["id"], gw), ""),
+                                # post-GW value doesn't exist yet; only
+                                # the lag (previous row) is a feature
+                                "xP": "",
                                 "element": el["id"],
                                 "GW": gw,
                                 "round": gw,

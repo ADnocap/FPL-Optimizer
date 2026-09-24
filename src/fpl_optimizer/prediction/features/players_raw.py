@@ -1,9 +1,13 @@
 """Pre-game features from players_raw.csv and merged_gw.csv.
 
 Features extracted:
-1. **fpl_xp** — FPL's official pre-match expected points (ep_this from
-   bootstrap-static API). Available 2020-21+. Used unshifted — this is
-   pre-deadline information.
+1. **fpl_xp_lag** — the PREVIOUS GW's value of the merged_gw ``xP`` column.
+   vaastav's ``xP`` is FPL's ``ep_this`` scraped after the GW, when FPL has
+   already recomputed it from form that includes that GW's own points, so the
+   same-GW value is a leak (proved 2026-09-24; EP_FORMULA.md was wrong). The
+   previous GW's value is point-in-time safe, and live it is exactly the
+   pre-deadline snapshot's ``ep_this`` (see fpl_live._load_snapshot_xp).
+   Missing-scrape GWs (whole GW zero/blank) are NaN, never 0. 2020-21+.
 2. **synthetic_ep** — Reconstructed EP from its known components:
    ``(form_proxy + fixture_offset) * playing_prob * dgw_mult``.
    Available for ALL seasons since it's built from rolling features.
@@ -33,7 +37,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 FEATURE_COLS = [
-    "fpl_xp",
+    "fpl_xp_lag",
     "synthetic_ep",
     "playing_prob",
     "fixture_offset",
@@ -74,18 +78,21 @@ def compute_players_raw_features(
     base = merged_gw[["element", "GW"]].drop_duplicates()
 
     # ------------------------------------------------------------------
-    # 1. fpl_xp from merged_gw (xP column = ep_this, available 2020-21+)
+    # 1. fpl_xp_lag: previous GW's xP (the same-GW value is post-match)
     # ------------------------------------------------------------------
     xp_df = merged_gw[["element", "GW"]].copy()
     if "xP" in merged_gw.columns:
-        xp_df["fpl_xp"] = pd.to_numeric(merged_gw["xP"], errors="coerce")
+        xp_df["xp"] = pd.to_numeric(merged_gw["xP"], errors="coerce")
     else:
-        xp_df["fpl_xp"] = float("nan")
-    # Average across DGW fixtures
-    xp_agg = xp_df.groupby(["element", "GW"], as_index=False).agg(
-        {"fpl_xp": "mean"}
-    )
-    base = base.merge(xp_agg, on=["element", "GW"], how="left")
+        xp_df["xp"] = float("nan")
+    # Same value on both fixture rows of a DGW -> mean
+    xp_agg = xp_df.groupby(["element", "GW"], as_index=False).agg({"xp": "mean"})
+    # A GW the scraper missed is written as 0 (or blank) for everyone: NaN
+    gw_abs = xp_agg["xp"].abs().fillna(0).groupby(xp_agg["GW"]).transform("sum")
+    xp_agg.loc[gw_abs == 0, "xp"] = float("nan")
+    xp_agg = xp_agg.sort_values(["element", "GW"])
+    xp_agg["fpl_xp_lag"] = xp_agg.groupby("element")["xp"].shift(1)
+    base = base.merge(xp_agg[["element", "GW", "fpl_xp_lag"]], on=["element", "GW"], how="left")
 
     # ------------------------------------------------------------------
     # 2. Synthetic EP components (available for ALL seasons)
@@ -110,10 +117,10 @@ def compute_players_raw_features(
                      "is_freekick_taker", "set_piece_order_sum"]:
             base[col] = float("nan")
 
-    n_xp = base["fpl_xp"].notna().sum()
+    n_xp = base["fpl_xp_lag"].notna().sum()
     n_synth = base["synthetic_ep"].notna().sum()
     logger.info(
-        "players_raw %s: fpl_xp=%d/%d (%.0f%%), synthetic_ep=%d/%d (%.0f%%)",
+        "players_raw %s: fpl_xp_lag=%d/%d (%.0f%%), synthetic_ep=%d/%d (%.0f%%)",
         season, n_xp, len(base), 100.0 * n_xp / max(len(base), 1),
         n_synth, len(base), 100.0 * n_synth / max(len(base), 1),
     )

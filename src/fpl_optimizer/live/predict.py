@@ -18,14 +18,84 @@ from fpl_optimizer.prediction.model import PointPredictor
 
 logger = logging.getLogger(__name__)
 
+# Written next to the model by scripts/train_predictor.py: per-feature
+# non-null rate and std on recent training rows of players who are playing.
+SERVING_REFERENCE_FILE = "serving_reference.json"
+
+
+def _regular_rows(df):
+    """Rows of players who have been playing (the rows decisions depend on)."""
+    if "mins_rolling_3" in df.columns:
+        reg = df[df["mins_rolling_3"].fillna(0) >= 30]
+        if len(reg) >= 50:
+            return reg
+    return df
+
+
+def serving_reference(df, feature_names: list[str]) -> dict[str, dict[str, float]]:
+    """Per-feature non-null rate / std on *df* (training side of the check)."""
+    reg = _regular_rows(df)
+    ref = {}
+    for f in feature_names:
+        if f in reg.columns:
+            col = reg[f]
+            ref[f] = {
+                "nonnull": float(col.notna().mean()),
+                "std": float(col.std()) if col.notna().sum() > 1 else 0.0,
+            }
+    return ref
+
+
+def serving_health(gw_df, feature_names: list[str], reference: dict | None) -> list[str]:
+    """Warnings for features the model will see empty/constant at this deadline.
+
+    Silent train/serve gaps (understat never collected, odds file missing,
+    team strengths published as 0) degraded the whole 2026-27 GW1-5 run
+    without a single error. Compares the upcoming GW's rows with the
+    training reference; returns one line per suspicious feature.
+    """
+    reg = _regular_rows(gw_df)
+    warnings = []
+    missing = [f for f in feature_names if f not in gw_df.columns]
+    if missing:
+        warnings.append(f"{len(missing)} model features absent from the pipeline: {missing}")
+    for f in feature_names:
+        if f not in reg.columns:
+            continue
+        live_nn = float(reg[f].notna().mean())
+        ref = (reference or {}).get(f)
+        if ref is None:
+            continue
+        if ref["nonnull"] >= 0.5 and live_nn < ref["nonnull"] - 0.3:
+            warnings.append(
+                f"{f}: {live_nn:.0%} populated live vs {ref['nonnull']:.0%} in training"
+            )
+        elif live_nn > 0.5 and ref["std"] > 0 and float(reg[f].std() or 0.0) == 0.0:
+            warnings.append(f"{f}: constant live ({reg[f].dropna().iloc[0]!r}), varies in training")
+    return warnings
+
+
+def _load_reference(model_dir: Path) -> dict | None:
+    import json
+
+    path = Path(model_dir) / SERVING_REFERENCE_FILE
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
 
 def predict_upcoming_gw(
     data_dir: Path,
     model_dir: Path,
     season: str,
     gw: int,
+    health: list[str] | None = None,
 ) -> dict[int, float]:
-    """Return element_id -> predicted points for the given upcoming GW."""
+    """Return element_id -> predicted points for the given upcoming GW.
+
+    If *health* is a list, serving-health warnings (see :func:`serving_health`)
+    are appended to it.
+    """
     predictor = PointPredictor.load(model_dir)
     id_resolver = IDResolver(data_dir)
 
@@ -43,6 +113,12 @@ def predict_upcoming_gw(
             gw,
         )
         return {}
+
+    warnings = serving_health(gw_df, predictor._feature_names, _load_reference(model_dir))
+    for w in warnings:
+        logger.warning("Serving health: %s", w)
+    if health is not None:
+        health.extend(warnings)
 
     preds = predictor.predict(gw_df)
     out: dict[int, float] = defaultdict(float)
@@ -62,6 +138,7 @@ def predict_horizon_live(
     gw: int,
     horizon: int,
     dgw_mode: str = "blend",
+    health: list[str] | None = None,
 ):
     """Predictions for GWs gw..gw+horizon-1 as of the GW ``gw`` deadline.
 
@@ -88,6 +165,12 @@ def predict_horizon_live(
         )
         for c in missing:
             df[c] = float("nan")
+    warnings = serving_health(df[df["GW"] == gw], predictor._feature_names,
+                              _load_reference(model_dir))
+    for w in warnings:
+        logger.warning("Serving health: %s", w)
+    if health is not None:
+        health.extend(warnings)
     ctx = FixtureContext.from_raw_dir(data_dir / "raw" / season)
     preds = predict_horizon(predictor, df, ctx, gw, horizon, dgw_mode)
     logger.info("Live horizon: %d (element, GW) predictions for GW%d-%d",

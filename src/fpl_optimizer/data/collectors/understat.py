@@ -111,6 +111,68 @@ class UnderstatCollector(BaseCollector):
         return results
 
     # ------------------------------------------------------------------
+    # Live season: forced, incremental weekly refresh
+    # ------------------------------------------------------------------
+
+    def refresh_live_season(self, season: str) -> dict[str, int]:
+        """Re-fetch the CURRENT season (the normal collectors skip cached files).
+
+        The league table is always re-downloaded; per-match files are
+        re-fetched only for players whose league appearance count grew since
+        the cached file was written (or who have no file yet), so a weekly run
+        costs a few minutes rather than ~10. Returns counts for logging.
+        """
+        from understatapi import UnderstatClient
+
+        us_season = SEASON_TO_UNDERSTAT.get(season)
+        if us_season is None:
+            raise ValueError(f"No Understat mapping for season {season}")
+
+        self.rate_limiter.wait()
+        with UnderstatClient() as client:
+            league = client.league(league=LEAGUE).get_player_data(us_season)
+        dest = self.league_dir / f"{season}.json"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(json.dumps(league, indent=2), encoding="utf-8")
+
+        season_dir = self.players_dir / season
+        season_dir.mkdir(parents=True, exist_ok=True)
+        stale = []
+        for player in league:
+            pid = str(player.get("id", ""))
+            if not pid:
+                continue
+            path = season_dir / f"{pid}.json"
+            games = int(player.get("games") or 0)
+            try:
+                cached = len(json.loads(path.read_text(encoding="utf-8"))) if path.exists() else -1
+            except (json.JSONDecodeError, OSError):
+                cached = -1
+            if cached < games:
+                stale.append(pid)
+
+        failed = 0
+        with UnderstatClient() as client:
+            for pid in tqdm(stale, desc=f"Understat refresh {season}", unit="player"):
+                try:
+                    self.rate_limiter.wait()
+                    matches = [
+                        m for m in client.player(player=pid).get_match_data()
+                        if str(m.get("season", "")) == us_season
+                    ]
+                    (season_dir / f"{pid}.json").write_text(
+                        json.dumps(matches, indent=2), encoding="utf-8"
+                    )
+                except Exception as exc:  # one bad player must not stop the run
+                    failed += 1
+                    logger.warning("Understat refresh %s player %s: %s", season, pid, exc)
+        logger.info(
+            "Understat refresh %s: %d players, %d re-fetched, %d failed",
+            season, len(league), len(stale), failed,
+        )
+        return {"players": len(league), "refetched": len(stale), "failed": failed}
+
+    # ------------------------------------------------------------------
     # Phase A: league-level aggregates
     # ------------------------------------------------------------------
 

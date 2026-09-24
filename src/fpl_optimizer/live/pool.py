@@ -41,7 +41,12 @@ def build_live_candidates(
         Element ids that must appear in the pool regardless of availability
         (the current squad — the optimizer needs them to price transfers out).
     availability_scaling : bool
-        Scale predictions by chance_of_playing (75% chance -> 0.75x points).
+        Scale predictions by the calibrated availability multiplier for the
+        upcoming GW's flag (:func:`availability_multipliers`; 75% -> 0.40x,
+        not 0.75x — see FLAG_MULTIPLIER). This is the ONLY place availability
+        enters model predictions: the leak-fixed model is fed the previous
+        GW's ep_this and is almost flag-blind. Off in FPL-EP mode (EP already
+        embeds chance_of_playing).
     """
     always_include = always_include or set()
     candidates: list[PlayerCandidate] = []
@@ -55,8 +60,8 @@ def build_live_candidates(
             if chance is not None and chance < min_chance:
                 continue
         pts = predicted_points.get(eid, 0.0)
-        if availability_scaling and chance is not None:
-            pts *= max(0, min(100, chance)) / 100.0
+        if availability_scaling:
+            pts *= availability_multipliers(el, 1)[0]
         if el["status"] in _EXCLUDED_STATUS:
             pts = 0.0  # in-squad but out injured: never expect points
         candidates.append(
@@ -72,11 +77,14 @@ def build_live_candidates(
     return candidates
 
 
-# P(plays | flag) relative to an unflagged player, for the UPCOMING GW.
-# 2026-27 GW1-5 audit: 75%-flagged players played 0 minutes 40/53 times
-# (~0.25 played vs ~0.8 for unflagged players with similar minutes history),
-# so a 75% flag is worth far less than 0.75x.  Lower flags scale down further.
-FLAG_MULTIPLIER = {100: 1.0, 75: 0.35, 50: 0.2, 25: 0.08, 0: 0.0}
+# Expected-points multiplier by the UPCOMING GW's chance_of_playing flag,
+# relative to an unflagged player. 2026-27 GW1-5 calibration (pre-deadline
+# snapshots vs minutes; shrunk toward a prior): a 75% flag played 24.5% of
+# the time (13/53; 0.41 among last-GW starters vs 0.87 unflagged) and scored
+# 0.16-0.27x of its prediction; 50%: 36% (n=14); 25%: 25% (n=8). FPL's
+# "75%" is therefore worth ~0.40x, not 0.75x. Re-check as data accrues
+# (scripts/calibrate_availability.py).
+FLAG_MULTIPLIER = {100: 1.0, 75: 0.40, 50: 0.25, 25: 0.10, 0: 0.0}
 # Fraction of the gap to full availability recovered k GWs later
 # (doubtful players mostly return within 1-2 GWs; injured/suspended slower).
 _RECOVERY = {

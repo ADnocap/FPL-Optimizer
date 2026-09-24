@@ -220,6 +220,22 @@ class TestDateAlignment:
         xg3 = kane["xg_rolling_3"].iloc[0]
         assert xg3 == pytest.approx(0.5, abs=1e-6)
 
+    def test_same_day_match_excluded_when_gw_date_has_time(
+        self, pred_data_dir_understat: Path, resolver: IDResolver
+    ) -> None:
+        """Real GW dates are first-kickoff TIMESTAMPS; understat dates are days.
+
+        A match dated Aug 19 is played on the GW's own first-kickoff day, so it
+        is a same-GW outcome and must be excluded even though midnight Aug 19
+        < 11:30 Aug 19 (the pre-2026-09-25 same-day leak).
+        """
+        kickoff_dates = pd.Series({1: pd.Timestamp("2023-08-19 11:30:00")})
+        df = compute_understat_features(
+            pred_data_dir_understat, "2023-24", resolver, kickoff_dates,
+        )
+        kane = df[df["code"] == 100]
+        assert kane["xg_rolling_3"].iloc[0] == pytest.approx(0.5, abs=1e-6)
+
 
 class TestMissingData:
     """Test graceful handling of missing understat data."""

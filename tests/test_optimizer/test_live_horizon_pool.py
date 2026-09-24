@@ -19,7 +19,7 @@ class TestAvailability:
 
     def test_flag_hits_this_gw_hard_and_recovers(self):
         m = availability_multipliers(_el(1, "d", 75), 4)
-        assert m[0] == pytest.approx(0.35)  # 75% flag != 0.75x (audit)
+        assert m[0] == pytest.approx(0.40)  # 75% flag != 0.75x (audit)
         assert m[0] < m[1] < m[2] < m[3] <= 1.0
 
     def test_left_club_is_zero_everywhere(self):
@@ -42,5 +42,19 @@ def test_build_live_horizon_candidates():
     assert set(by) == {1, 2, 3}  # 4 below min_chance, 2 kept (in squad)
     assert by[1].xpts == (4.0, 4.0)
     assert by[2].xpts[0] == 0.0  # injured squad player: no points this GW
-    assert by[3].xpts[0] == pytest.approx(0.8) and by[3].xpts[1] > by[3].xpts[0]
+    assert by[3].xpts[0] == pytest.approx(1.0) and by[3].xpts[1] > by[3].xpts[0]
     assert by[3].p_play[0] < 0.9
+
+
+def test_single_gw_pool_uses_the_same_calibrated_multiplier():
+    """The weekly pool must not fall back to chance/100 (75% flag != 0.75x)."""
+    from fpl_optimizer.live.pool import build_live_candidates
+
+    boot = {"elements": [_el(1), _el(3, "d", 75)]}
+    cands = {c.element_id: c for c in build_live_candidates(boot, {1: 5.0, 3: 5.0})}
+    assert cands[1].predicted_points == pytest.approx(5.0)
+    assert cands[3].predicted_points == pytest.approx(5.0 * 0.40)
+    # FPL-EP mode: EP already embeds the flag -> no second discount
+    ep = {c.element_id: c for c in build_live_candidates(
+        boot, {1: 5.0, 3: 5.0}, availability_scaling=False)}
+    assert ep[3].predicted_points == pytest.approx(5.0)
