@@ -19,7 +19,7 @@ from fpl_optimizer.optimizer.squad_selection import select_squad
 from fpl_optimizer.optimizer.transfer_optimizer import optimize_transfers
 from fpl_optimizer.optimizer.types import build_candidate_pool, to_engine_action
 from fpl_optimizer.prediction.integration import PredictionIntegrator
-from fpl_optimizer.utils.constants import INITIAL_FREE_TRANSFERS, STARTING_BUDGET, Position
+from fpl_optimizer.utils.constants import GW1_FREE_TRANSFERS, STARTING_BUDGET, Position
 
 
 SEASON = "2024-25"
@@ -97,7 +97,7 @@ def main():
     squad = Squad(players=players, lineup=lineup, bench=bench,
                   captain_idx=captain_idx, vice_captain_idx=vice_idx)
     state = GameState(squad=squad, bank=STARTING_BUDGET - squad_result.total_cost,
-                      free_transfers=INITIAL_FREE_TRANSFERS, chips=ChipState(),
+                      free_transfers=GW1_FREE_TRANSFERS, chips=ChipState(),
                       current_gw=1, total_points=0)
 
     # Collect GW data

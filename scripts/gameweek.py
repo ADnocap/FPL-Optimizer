@@ -20,6 +20,22 @@ Useful flags:
                         triple_captain)
     --ep                use FPL's own EP instead of the model (sanity check)
 
+Multi-GW planning (receding horizon; default off = single-GW optimizer):
+    --horizon N         plan transfers jointly over the next N GWs (FT
+                        banking, hits, fixture swings, blanks/doubles);
+                        only this GW's moves are executed. 3 is the
+                        backtested choice (scripts/backtest_horizon.py).
+    --chip-plan SPEC    chip schedule the planner must respect, e.g.
+                        "tc:7,wc:11,bb:12" (tc/wc/bb/fh). The plan is a human
+                        decision (SEASON_GUIDE.md); chips outside the horizon
+                        or already used are ignored. --chip overrides this GW.
+    --discount D        per-GW discount of future points (default 0.85)
+    --hit-margin M      extra penalty per -4 hit (default 4: a hit must
+                        promise > 8 planned points — guards against
+                        over-predicted buys; 0 overtrades badly in backtests)
+    --max-hits K        at most K hits per GW (0 = free transfers only)
+    --ft-value V        value of each FT banked after the horizon (default 0)
+
 Find your team ID on fantasy.premierleague.com -> Points tab -> the number
 in the URL: /entry/<TEAM_ID>/event/1
 """
@@ -116,12 +132,42 @@ def main() -> None:
                              "must be in the recommended XI)")
     parser.add_argument("--vice", default=None, metavar="NAME_OR_ID",
                         help="override the MILP vice-captain (same rules)")
+    parser.add_argument("--horizon", type=int, default=None, metavar="N",
+                        help="multi-GW planner over N GWs (team mode only)")
+    parser.add_argument("--chip-plan", default=None, metavar="SPEC",
+                        help='chip schedule for the planner, e.g. "tc:7,wc:11,bb:12"')
+    parser.add_argument("--discount", type=float, default=None,
+                        help="per-GW discount (default: HorizonConfig)")
+    parser.add_argument("--hit-margin", type=float, default=None,
+                        help="extra penalty per -4 hit (default: HorizonConfig)")
+    parser.add_argument("--ft-value", type=float, default=None,
+                        help="value per FT banked after the horizon (default: HorizonConfig)")
+    parser.add_argument("--max-hits", type=int, default=None,
+                        help="max -4 hits per GW for the planner (0 = FT-only; "
+                             "default: HorizonConfig)")
     parser.add_argument("--apply", action="store_true",
                         help="submit to the FPL API (dry-run validation unless --yes; "
                              "needs FPL_REFRESH_TOKEN in .env — see live/auth.py)")
     parser.add_argument("--yes", action="store_true",
                         help="with --apply: actually commit transfers and lineup")
     args = parser.parse_args()
+    if args.horizon is not None:
+        if args.horizon < 1:
+            parser.error("--horizon must be >= 1")
+        if args.ep:
+            parser.error("--horizon needs model predictions (FPL EP covers one GW only)")
+        if args.fresh_squad:
+            parser.error("--horizon plans transfers for an existing team (use --team-id)")
+    if args.chip_plan and args.horizon is None:
+        parser.error("--chip-plan is only used by the multi-GW planner (add --horizon N)")
+    chip_plan: dict[int, str] = {}
+    if args.chip_plan:
+        from fpl_optimizer.optimizer.horizon_optimizer import parse_chip_plan
+
+        try:
+            chip_plan = parse_chip_plan(args.chip_plan)
+        except ValueError as exc:
+            parser.error(str(exc))
 
     # Default --team-id from .env (FPL_TEAM_ID)
     if args.team_id is None and not args.fresh_squad:
@@ -198,7 +244,23 @@ def main() -> None:
     # FPL's EP already embeds chance_of_playing (EP_FORMULA.md), so the pool
     # must not scale by availability a second time in EP mode.
     using_ep = args.ep
-    if args.ep:
+    horizon_preds = None
+    horizon_gws: list[int] = []
+    if args.horizon is not None and args.team_id is not None:
+        from fpl_optimizer.live.predict import predict_horizon_live
+
+        horizon_gws = list(range(gw, min(gw + args.horizon, 39)))
+        horizon_preds = predict_horizon_live(
+            args.data_dir, args.model_dir, args.season, gw, len(horizon_gws)
+        )
+        if horizon_preds.empty:
+            print("ERROR: no horizon predictions — cannot run the multi-GW planner.")
+            return
+        k0 = horizon_preds[horizon_preds["k"] == 0]
+        predictions = dict(zip(k0["element"].astype(int), k0["pred"].astype(float)))
+        print(f"Predictions: {args.model_dir.name} model, horizon GW{horizon_gws[0]}"
+              f"-{horizon_gws[-1]} ({len(predictions)} players this GW)")
+    elif args.ep:
         predictions = ep_reference(bootstrap)
         print("Predictions: FPL EP (ep_next)")
     else:
@@ -243,14 +305,61 @@ def main() -> None:
               f"{gs.free_transfers}  |  squad from GW{entry_state.picks_gw}\n")
 
         squad_ids = {p.element_id for p in gs.squad.players}
-        candidates = build_live_candidates(
-            bootstrap, predictions,
-            min_chance=args.min_chance, always_include=squad_ids,
-            availability_scaling=not using_ep,
-        )
-        result = optimize_transfers(
-            gs, candidates, chip=args.chip, max_transfers=args.max_transfers
-        )
+        if horizon_preds is not None:
+            from fpl_optimizer.live.pool import build_live_horizon_candidates
+            from fpl_optimizer.optimizer.horizon_optimizer import (
+                HorizonConfig,
+                optimize_horizon,
+            )
+
+            if args.chip:
+                chip_plan[gw] = args.chip
+            h_cands = build_live_horizon_candidates(
+                bootstrap, horizon_preds, horizon_gws,
+                min_chance=args.min_chance, always_include=squad_ids,
+            )
+            cfg = HorizonConfig(max_transfers_per_gw=args.max_transfers)
+            if args.discount is not None:
+                cfg.discount = args.discount
+            if args.hit_margin is not None:
+                cfg.hit_margin = args.hit_margin
+            if args.max_hits is not None:
+                cfg.max_hits_per_gw = args.max_hits
+            if args.ft_value is not None:
+                cfg.ft_value = args.ft_value
+            hres = optimize_horizon(gs, h_cands, horizon_gws, chip_plan, cfg)
+            import dataclasses
+
+            # report THIS GW's expected points (the objective spans the horizon)
+            result = dataclasses.replace(
+                hres.first, objective_value=hres.plan[0].expected_points)
+            xp_by = {c.element_id: c.xpts for c in h_cands}
+            print(f"Multi-GW plan (GW{horizon_gws[0]}-{horizon_gws[-1]}, discount "
+                  f"{cfg.discount}, hit margin {cfg.hit_margin}, max hits/GW "
+                  f"{cfg.max_hits_per_gw}, FT value {cfg.ft_value}, "
+                  f"solve {hres.solve_seconds:.0f}s, {hres.status}); "
+                  "only the first GW is executed — re-run next week:")
+            for k, p in enumerate(hres.plan):
+                names_in = ", ".join(elements[e]["web_name"] for e in p.transfers_in)
+                names_out = ", ".join(elements[e]["web_name"] for e in p.transfers_out)
+                chip_txt = f" [{p.chip}]" if p.chip else ""
+                moves = (f"OUT {names_out} -> IN {names_in}" if p.transfers_in
+                         else "no transfers")
+                print(f"  GW{p.gw}{chip_txt}: FT {p.free_transfers}, {moves}"
+                      + (f", hits -{4 * p.hits}" if p.hits else "")
+                      + f" | C {elements[p.captain_id]['web_name']}"
+                      f" ({xp_by.get(p.captain_id, (0,) * (k + 1))[k]:.1f})"
+                      f" | xPts {p.expected_points:.1f} | bank {p.bank_after / 10:.1f}m")
+            print()
+        else:
+            candidates = build_live_candidates(
+                bootstrap, predictions,
+                min_chance=args.min_chance, always_include=squad_ids,
+                availability_scaling=not using_ep,
+            )
+            result = optimize_transfers(
+                gs, candidates, chip=args.chip, max_transfers=args.max_transfers
+            )
         header = "Recommended plan"
 
         if result.transfers_out:
@@ -282,8 +391,11 @@ def main() -> None:
     print("\nBench (sub priority order):")
     for eid in result.bench_element_ids:
         print(f"  {_fmt_player(eid, elements, teams, predictions)}")
-    if args.chip:
-        print(f"\nChip evaluated: {args.chip}")
+    # The chip this GW: --chip, or the planner's chip-plan entry for this GW
+    chip_used = result.chip if horizon_preds is not None else args.chip
+    if chip_used:
+        print(f"\nChip {'planned' if horizon_preds is not None else 'evaluated'}"
+              f" this GW: {chip_used}")
 
     # 5. Optional API submission
     applied = False
@@ -334,7 +446,7 @@ def main() -> None:
                         ),
                     }
                 )
-            chip = args.chip if args.chip in ("wildcard", "free_hit") else None
+            chip = chip_used if chip_used in ("wildcard", "free_hit") else None
             # NOTE: the current FPL API applies transfers even when the
             # payload says confirmed=false (observed GW3 2026-27: the
             # follow-up confirmed=true POST failed with "Element in is
@@ -364,7 +476,7 @@ def main() -> None:
             else:
                 print("Not submitted — re-run with --yes to commit.")
         if args.yes:
-            chip = args.chip if args.chip in ("bench_boost", "triple_captain") else None
+            chip = chip_used if chip_used in ("bench_boost", "triple_captain") else None
             apply_lineup(
                 auth, args.team_id,
                 result.lineup_element_ids, result.bench_element_ids,

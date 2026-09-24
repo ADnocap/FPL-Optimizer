@@ -36,17 +36,19 @@ def activate_chip(state: GameState, chip: str) -> GameState:
     state.active_chip = chip
     state.chips.use_chip(chip, state.current_gw)
 
-    # Free Hit: stash current squad for revert after GW
+    # Free Hit: stash current squad AND bank for revert after GW
     if chip == "free_hit":
         state.free_hit_stash = state.squad.copy()
+        state.free_hit_bank_stash = state.bank
 
     return state
 
 
 def revert_free_hit(state: GameState) -> GameState:
-    """Revert squad to pre-Free Hit state after the GW is processed.
+    """Revert squad (and bank) to the pre-Free Hit state after the GW.
 
-    Free Hit transfers are temporary — squad reverts next GW.
+    Free Hit transfers are temporary — the squad reverts next GW, and so does
+    the money in the bank (the FH sales/purchases are undone).
     Free transfers are NOT reset by Free Hit (2025/26 rule).
     """
     if state.free_hit_stash is None:
@@ -55,6 +57,9 @@ def revert_free_hit(state: GameState) -> GameState:
     state = state.copy()
     state.squad = state.free_hit_stash
     state.free_hit_stash = None
+    if state.free_hit_bank_stash is not None:
+        state.bank = state.free_hit_bank_stash
+        state.free_hit_bank_stash = None
     return state
 
 

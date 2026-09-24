@@ -162,7 +162,7 @@ def main():
     from fpl_optimizer.optimizer.transfer_optimizer import optimize_transfers
     from fpl_optimizer.optimizer.types import build_candidate_pool, to_engine_action
     from fpl_optimizer.prediction.integration import PredictionIntegrator
-    from fpl_optimizer.utils.constants import INITIAL_FREE_TRANSFERS, STARTING_BUDGET
+    from fpl_optimizer.utils.constants import GW1_FREE_TRANSFERS, STARTING_BUDGET
 
     loader = SeasonDataLoader(HOLDOUT, DEFAULT_DATA_DIR)
     engine = FPLGameEngine(loader)
@@ -205,7 +205,7 @@ def main():
         )
         state = GameState(
             squad=squad, bank=STARTING_BUDGET - result.total_cost,
-            free_transfers=INITIAL_FREE_TRANSFERS, chips=ChipState(),
+            free_transfers=GW1_FREE_TRANSFERS, chips=ChipState(),
             current_gw=1, total_points=0,
         )
 

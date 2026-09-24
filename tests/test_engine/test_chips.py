@@ -110,6 +110,15 @@ class TestFreeHitRevert:
         assert reverted.free_hit_stash is None
         assert reverted.squad.players[6].element_id == original_id
 
+    def test_revert_restores_bank(self, sample_state):
+        """FH sales/purchases are undone: the bank returns to its pre-FH value."""
+        bank_before = sample_state.bank
+        state = activate_chip(sample_state, "free_hit")
+        state.bank = bank_before - 25  # FH squad cost 2.5m more than sold
+        reverted = revert_free_hit(state)
+        assert reverted.bank == bank_before
+        assert reverted.free_hit_bank_stash is None
+
     def test_no_stash_no_revert(self, sample_state):
         result = revert_free_hit(sample_state)
         assert result.squad == sample_state.squad

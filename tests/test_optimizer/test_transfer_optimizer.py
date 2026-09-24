@@ -182,3 +182,13 @@ class TestTransferOptimizer:
         for team_id, count in team_counts.items():
             if team_id != 0:  # skip placeholder team
                 assert count <= MAX_PER_CLUB
+
+    def test_four_blanking_squad_players_stay_feasible(
+        self, squad_15_candidates, optimizer_game_state
+    ):
+        """Squad players missing from the GW pool (blank GW) must not share
+        one placeholder club — 4+ of them used to make the MILP infeasible."""
+        missing = {3, 4, 8, 13}  # absent from this GW's data
+        candidates = [c for c in squad_15_candidates if c.element_id not in missing]
+        result = optimize_transfers(optimizer_game_state, candidates)
+        assert len(result.squad_element_ids) == 15

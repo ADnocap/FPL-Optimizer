@@ -68,6 +68,18 @@ class TestSeasonBacktester:
 class TestOptimizerResultToGameState:
     """Test the helper that builds a GameState from an OptimizerResult."""
 
+    def test_gw2_gets_exactly_one_free_transfer(self, loader):
+        """FPL gives 1 FT for GW2 (the GW1 squad is picked freely)."""
+        from fpl_optimizer.engine.engine import FPLGameEngine
+        from fpl_optimizer.optimizer.types import to_engine_action
+
+        squad_result = select_squad(build_candidate_pool(loader, gw=1))
+        state = _optimizer_result_to_game_state(squad_result, loader, 1)
+        action = to_engine_action(squad_result)
+        action.transfers_in, action.transfers_out = [], []
+        state2, _ = FPLGameEngine(loader).step(state, action)
+        assert state2.free_transfers == 1
+
     def test_builds_valid_state(self, loader):
         candidates = build_candidate_pool(loader, gw=1)
         squad_result = select_squad(candidates)

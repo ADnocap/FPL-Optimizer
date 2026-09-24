@@ -97,16 +97,21 @@ def optimize_transfers(
     cand_map: dict[int, PlayerCandidate] = {c.element_id: c for c in pool}
 
     # Ensure all current squad members are in the pool
-    # (they may not appear in GW data if they didn't play — add with 0 xP)
+    # (they may not appear in GW data if they didn't play — add with 0 xP).
+    # Each placeholder gets its OWN fake club: a shared id would count all
+    # of them against one 3-per-club limit and make the problem infeasible
+    # when 4+ squad players blank (e.g. a cup-final blank GW).
+    placeholder_team = -1
     for p in current_squad:
         if p.element_id not in cand_map:
             cand_map[p.element_id] = PlayerCandidate(
                 element_id=p.element_id,
                 position=p.position,
                 price=p.selling_price,
-                team_id=0,  # placeholder — will be constrained via squad membership
+                team_id=placeholder_team,
                 predicted_points=0.0,
             )
+            placeholder_team -= 1
 
     all_cands = list(cand_map.values())
     n = len(all_cands)

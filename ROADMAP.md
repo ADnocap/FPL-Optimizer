@@ -28,10 +28,20 @@ honest chipless backtest 2,261 net (@1 FT) / 2,566 (unconstrained).
    banking as integer state [1,5], terminal FT value (~1.5, nonlinear),
    ITB value (~0.08/£1m). Our own backtest brackets the headroom: 305 pts
    between 1-FT and myopic-unconstrained. Lift: +40-100 pts/season.
+   **BUILT 2026-09-24** (`optimizer/horizon_optimizer.py`,
+   `prediction/horizon.py`, `gameweek.py --horizon N --chip-plan ...`,
+   `scripts/backtest_horizon.py`). Leak-free replays 2023-24..2025-26:
+   H=3 + hit margin 4 = +19/season vs the single-GW MILP (6/9 replays won),
+   +24 with a chip plan; unregularised H=4 = −160 (hit churn). The headroom
+   above was mostly the 1-FT cap (−66/season vs unconstrained). Next lever:
+   better future-GW predictions (fixture swap adds only +0.02-0.04 Spearman
+   over persistence) — e.g. the xMins model (#1).
 5. **Chips as MILP decision variables** — use_wc/fh/bb/tc binaries, FH as
    parallel one-week squad, BB extends lineup, TC ≤ captain; ingest Ben
    Crellin's DGW/BGW sheet. Backtests are chipless today: +60-150 pts/season.
-   Effort: days once #4 exists.
+   Effort: days once #4 exists. **Partly built**: the planner executes a
+   GIVEN chip schedule (WC/FH squad revert/BB/TC, FT carry rules) and
+   `backtest_horizon.py` replays chip plans; choosing chip weeks is not built.
 6. **Zero-new-data feature bundle** — team attacking share, minutes-share in
    position group, venue-split form, opponent-adjusted rolling, per-90
    decomposition, congestion (days-rest, matches-in-14d, Euro/cup via

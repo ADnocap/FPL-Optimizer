@@ -55,6 +55,46 @@ def predict_upcoming_gw(
     return dict(out)
 
 
+def predict_horizon_live(
+    data_dir: Path,
+    model_dir: Path,
+    season: str,
+    gw: int,
+    horizon: int,
+    dgw_mode: str = "blend",
+):
+    """Predictions for GWs gw..gw+horizon-1 as of the GW ``gw`` deadline.
+
+    Uses the live season files (whose synthetic upcoming-GW rows are the
+    as-of rows) and swaps fixture features for later GWs — see
+    :mod:`fpl_optimizer.prediction.horizon`.  Returns a DataFrame
+    ``element, GW, k, pred, p_play`` (blank GWs absent = 0 points).
+    """
+    import pandas as pd
+
+    from fpl_optimizer.prediction.horizon import FixtureContext, predict_horizon
+
+    predictor = PointPredictor.load(model_dir)
+    id_resolver = IDResolver(data_dir)
+    df = FeaturePipeline(data_dir, id_resolver, [season]).build()
+    if df.empty or not (df["GW"] == gw).any():
+        logger.warning("Live horizon: no feature rows for GW%d", gw)
+        return pd.DataFrame(columns=["element", "GW", "k", "pred", "p_play"])
+    missing = [c for c in predictor._feature_names if c not in df.columns]
+    if missing:
+        logger.warning(
+            "Live horizon: model features missing from the pipeline output, "
+            "served as NaN: %s", missing,
+        )
+        for c in missing:
+            df[c] = float("nan")
+    ctx = FixtureContext.from_raw_dir(data_dir / "raw" / season)
+    preds = predict_horizon(predictor, df, ctx, gw, horizon, dgw_mode)
+    logger.info("Live horizon: %d (element, GW) predictions for GW%d-%d",
+                len(preds), gw, gw + horizon - 1)
+    return preds
+
+
 def ep_reference(bootstrap: dict, gw_is_next: bool = True) -> dict[int, float]:
     """FPL's own EP (ep_next pre-deadline) — used for sanity comparison only."""
     field = "ep_next" if gw_is_next else "ep_this"

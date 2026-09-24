@@ -24,7 +24,7 @@ from fpl_optimizer.optimizer.types import (
     build_candidate_pool,
     to_engine_action,
 )
-from fpl_optimizer.utils.constants import STARTING_BUDGET, Position
+from fpl_optimizer.utils.constants import GW1_FREE_TRANSFERS, STARTING_BUDGET, Position
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ def _optimizer_result_to_game_state(
     return GameState(
         squad=squad,
         bank=STARTING_BUDGET - result.total_cost,
-        free_transfers=1,
+        free_transfers=GW1_FREE_TRANSFERS,  # -> 1 FT for GW2 (FPL rule)
         chips=ChipState(),
         current_gw=gw,
         total_points=0,

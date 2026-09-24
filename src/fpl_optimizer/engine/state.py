@@ -140,6 +140,7 @@ class GameState:
     total_points: int = 0
     active_chip: str | None = None  # chip active this GW
     free_hit_stash: Squad | None = None  # saved squad during Free Hit
+    free_hit_bank_stash: int | None = None  # saved bank during Free Hit
 
     def copy(self) -> GameState:
         return GameState(
@@ -151,6 +152,7 @@ class GameState:
             total_points=self.total_points,
             active_chip=self.active_chip,
             free_hit_stash=self.free_hit_stash.copy() if self.free_hit_stash else None,
+            free_hit_bank_stash=self.free_hit_bank_stash,
         )
 
 
