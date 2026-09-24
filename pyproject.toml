@@ -44,3 +44,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+markers = [
+    "bug(id): regression test for a rules bug found by the 2026-09-24 audit (fixed)",
+]

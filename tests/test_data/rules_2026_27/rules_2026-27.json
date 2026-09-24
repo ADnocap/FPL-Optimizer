@@ -1,0 +1,607 @@
+{
+ "chips": [
+  {
+   "id": 1,
+   "name": "wildcard",
+   "number": 1,
+   "start_event": 2,
+   "stop_event": 19,
+   "chip_type": "transfer",
+   "overrides": {
+    "rules": {},
+    "scoring": {},
+    "element_types": [],
+    "pick_multiplier": null
+   }
+  },
+  {
+   "id": 2,
+   "name": "wildcard",
+   "number": 1,
+   "start_event": 20,
+   "stop_event": 38,
+   "chip_type": "transfer",
+   "overrides": {
+    "rules": {},
+    "scoring": {},
+    "element_types": [],
+    "pick_multiplier": null
+   }
+  },
+  {
+   "id": 3,
+   "name": "freehit",
+   "number": 1,
+   "start_event": 2,
+   "stop_event": 19,
+   "chip_type": "transfer",
+   "overrides": {
+    "rules": {},
+    "scoring": {},
+    "element_types": [],
+    "pick_multiplier": null
+   }
+  },
+  {
+   "id": 4,
+   "name": "bboost",
+   "number": 1,
+   "start_event": 1,
+   "stop_event": 19,
+   "chip_type": "team",
+   "overrides": {
+    "rules": {},
+    "scoring": {},
+    "element_types": [],
+    "pick_multiplier": null
+   }
+  },
+  {
+   "id": 5,
+   "name": "3xc",
+   "number": 1,
+   "start_event": 1,
+   "stop_event": 19,
+   "chip_type": "team",
+   "overrides": {
+    "rules": {},
+    "scoring": {},
+    "element_types": [],
+    "pick_multiplier": null
+   }
+  },
+  {
+   "id": 6,
+   "name": "freehit",
+   "number": 1,
+   "start_event": 20,
+   "stop_event": 38,
+   "chip_type": "transfer",
+   "overrides": {
+    "rules": {},
+    "scoring": {},
+    "element_types": [],
+    "pick_multiplier": null
+   }
+  },
+  {
+   "id": 7,
+   "name": "bboost",
+   "number": 1,
+   "start_event": 20,
+   "stop_event": 38,
+   "chip_type": "team",
+   "overrides": {
+    "rules": {},
+    "scoring": {},
+    "element_types": [],
+    "pick_multiplier": null
+   }
+  },
+  {
+   "id": 8,
+   "name": "3xc",
+   "number": 1,
+   "start_event": 20,
+   "stop_event": 38,
+   "chip_type": "team",
+   "overrides": {
+    "rules": {},
+    "scoring": {},
+    "element_types": [],
+    "pick_multiplier": null
+   }
+  }
+ ],
+ "game_settings": {
+  "league_join_private_max": 30,
+  "league_join_public_max": 5,
+  "league_max_size_public_classic": 20,
+  "league_max_size_public_h2h": 20,
+  "league_max_size_private_h2h": 16,
+  "league_max_ko_rounds_private_h2h": 3,
+  "league_prefix_public": "League",
+  "league_points_h2h_win": 3,
+  "league_points_h2h_lose": 0,
+  "league_points_h2h_draw": 1,
+  "league_ko_first_instead_of_random": false,
+  "cup_start_event_id": null,
+  "cup_stop_event_id": null,
+  "cup_qualifying_method": null,
+  "cup_type": null,
+  "featured_entries": [],
+  "element_sell_at_purchase_price": false,
+  "percentile_ranks": [
+   1,
+   5,
+   10,
+   15,
+   20,
+   25,
+   30,
+   35,
+   40,
+   45,
+   50,
+   55,
+   60,
+   65,
+   70,
+   75,
+   80,
+   85,
+   90,
+   95
+  ],
+  "underdog_differential": 5,
+  "squad_squadplay": 11,
+  "squad_squadsize": 15,
+  "squad_special_min": null,
+  "squad_special_max": null,
+  "squad_team_limit": 3,
+  "squad_total_spend": 1000,
+  "ui_currency_multiplier": 10,
+  "ui_use_special_shirts": false,
+  "ui_special_shirt_exclusions": [],
+  "stats_form_days": 30,
+  "sys_vice_captain_enabled": true,
+  "transfers_cap": 20,
+  "transfers_sell_on_fee": 0.5,
+  "max_extra_free_transfers": 4,
+  "league_h2h_tiebreak_stats": [
+   "+goals_scored",
+   "-goals_conceded"
+  ],
+  "timezone": "UTC"
+ },
+ "game_config": {
+  "settings": {
+   "entry_per_event": false,
+   "timezone": "UTC",
+   "static_content_url": "https://fantasy.premierleague.com/gcs/plfpl-prod-static-content/plfpl-production/2026_27/",
+   "price_change_deadlines": [
+    "2026-09-24T23:00:00Z",
+    "2026-09-25T23:00:00Z",
+    "2026-09-26T23:00:00Z"
+   ]
+  },
+  "rules": {
+   "league_join_private_max": 30,
+   "league_join_public_max": 5,
+   "league_max_size_public_classic": 20,
+   "league_max_size_public_h2h": 20,
+   "league_max_size_private_h2h": 16,
+   "league_max_ko_rounds_private_h2h": 3,
+   "league_prefix_public": "League",
+   "league_points_h2h_win": 3,
+   "league_points_h2h_lose": 0,
+   "league_points_h2h_draw": 1,
+   "league_ko_first_instead_of_random": false,
+   "cup_start_event_id": null,
+   "cup_stop_event_id": null,
+   "cup_qualifying_method": null,
+   "cup_type": null,
+   "featured_entries": [],
+   "element_sell_at_purchase_price": false,
+   "percentile_ranks": [
+    1,
+    5,
+    10,
+    15,
+    20,
+    25,
+    30,
+    35,
+    40,
+    45,
+    50,
+    55,
+    60,
+    65,
+    70,
+    75,
+    80,
+    85,
+    90,
+    95
+   ],
+   "underdog_differential": 5,
+   "squad_squadplay": 11,
+   "squad_squadsize": 15,
+   "squad_special_min": null,
+   "squad_special_max": null,
+   "squad_team_limit": 3,
+   "squad_total_spend": 1000,
+   "ui_currency_multiplier": 10,
+   "ui_use_special_shirts": false,
+   "ui_special_shirt_exclusions": [],
+   "stats_form_days": 30,
+   "sys_vice_captain_enabled": true,
+   "transfers_cap": 20,
+   "transfers_sell_on_fee": 0.5,
+   "max_extra_free_transfers": 4,
+   "league_h2h_tiebreak_stats": [
+    "+goals_scored",
+    "-goals_conceded"
+   ]
+  },
+  "status": {
+   "price_change_last_updated": "2026-09-24T16:35:15.769979Z"
+  },
+  "scoring": {
+   "long_play": 2,
+   "short_play": 1,
+   "goals_conceded": {
+    "DEF": -1,
+    "FWD": 0,
+    "GKP": -1,
+    "MID": 0
+   },
+   "saves": 1,
+   "goals_scored": {
+    "DEF": 6,
+    "FWD": 4,
+    "GKP": 10,
+    "MID": 5
+   },
+   "assists": 3,
+   "clean_sheets": {
+    "DEF": 4,
+    "FWD": 0,
+    "GKP": 4,
+    "MID": 1
+   },
+   "penalties_saved": 5,
+   "penalties_missed": -2,
+   "yellow_cards": -1,
+   "red_cards": -3,
+   "own_goals": -2,
+   "bonus": 1,
+   "bps": 0,
+   "influence": 0,
+   "creativity": 0,
+   "threat": 0,
+   "ict_index": 0,
+   "special_multiplier": 1,
+   "tackles": 0,
+   "clearances_blocks_interceptions": 0,
+   "recoveries": 0,
+   "defensive_contribution": {
+    "DEF": 2,
+    "FWD": 2,
+    "GKP": 0,
+    "MID": 2
+   },
+   "starts": 0,
+   "mng_goals_scored": {
+    "DEF": 0,
+    "FWD": 0,
+    "GKP": 0,
+    "MID": 0
+   },
+   "mng_clean_sheets": {
+    "DEF": 0,
+    "FWD": 0,
+    "GKP": 0,
+    "MID": 0
+   },
+   "mng_win": {
+    "DEF": 0,
+    "FWD": 0,
+    "GKP": 0,
+    "MID": 0
+   },
+   "mng_draw": {
+    "DEF": 0,
+    "FWD": 0,
+    "GKP": 0,
+    "MID": 0
+   },
+   "mng_loss": 0,
+   "mng_underdog_win": {
+    "DEF": 0,
+    "FWD": 0,
+    "GKP": 0,
+    "MID": 0
+   },
+   "mng_underdog_draw": {
+    "DEF": 0,
+    "FWD": 0,
+    "GKP": 0,
+    "MID": 0
+   },
+   "expected_assists": 0,
+   "expected_goal_involvements": 0,
+   "expected_goals_conceded": 0,
+   "expected_goals": 0
+  }
+ },
+ "events": [
+  {
+   "id": 1,
+   "deadline_time": "2026-08-21T17:30:00Z",
+   "finished": true,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 2,
+   "deadline_time": "2026-08-28T17:30:00Z",
+   "finished": true,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 3,
+   "deadline_time": "2026-09-04T17:30:00Z",
+   "finished": true,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 4,
+   "deadline_time": "2026-09-12T12:30:00Z",
+   "finished": true,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 5,
+   "deadline_time": "2026-09-18T17:30:00Z",
+   "finished": true,
+   "is_current": true,
+   "is_next": false
+  },
+  {
+   "id": 6,
+   "deadline_time": "2026-10-10T10:00:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": true
+  },
+  {
+   "id": 7,
+   "deadline_time": "2026-10-17T10:00:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 8,
+   "deadline_time": "2026-10-23T17:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 9,
+   "deadline_time": "2026-10-31T11:00:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 10,
+   "deadline_time": "2026-11-06T18:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 11,
+   "deadline_time": "2026-11-21T11:00:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 12,
+   "deadline_time": "2026-11-27T18:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 13,
+   "deadline_time": "2026-12-02T18:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 14,
+   "deadline_time": "2026-12-05T13:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 15,
+   "deadline_time": "2026-12-12T13:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 16,
+   "deadline_time": "2026-12-19T13:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 17,
+   "deadline_time": "2026-12-26T11:00:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 18,
+   "deadline_time": "2026-12-29T18:00:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 19,
+   "deadline_time": "2027-01-01T18:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 20,
+   "deadline_time": "2027-01-05T18:00:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 21,
+   "deadline_time": "2027-01-16T13:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 22,
+   "deadline_time": "2027-01-23T13:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 23,
+   "deadline_time": "2027-01-30T13:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 24,
+   "deadline_time": "2027-02-06T13:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 25,
+   "deadline_time": "2027-02-10T18:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 26,
+   "deadline_time": "2027-02-20T13:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 27,
+   "deadline_time": "2027-02-27T13:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 28,
+   "deadline_time": "2027-03-03T18:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 29,
+   "deadline_time": "2027-03-13T13:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 30,
+   "deadline_time": "2027-03-20T13:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 31,
+   "deadline_time": "2027-04-10T12:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 32,
+   "deadline_time": "2027-04-17T12:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 33,
+   "deadline_time": "2027-04-24T12:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 34,
+   "deadline_time": "2027-05-01T12:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 35,
+   "deadline_time": "2027-05-08T12:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 36,
+   "deadline_time": "2027-05-15T12:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 37,
+   "deadline_time": "2027-05-23T12:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  },
+  {
+   "id": 38,
+   "deadline_time": "2027-05-30T13:30:00Z",
+   "finished": false,
+   "is_current": false,
+   "is_next": false
+  }
+ ]
+}
