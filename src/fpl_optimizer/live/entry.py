@@ -61,13 +61,21 @@ def _get(url: str) -> dict | list:
 def _compute_free_transfers(
     history: dict, chips_by_gw: dict[int, str], upcoming_gw: int
 ) -> int:
-    """Simulate the free-transfer bank from GW2 up to the upcoming GW."""
+    """Simulate the free-transfer bank from the entry's first GW to the upcoming GW.
+
+    Changes before a team's FIRST deadline are unlimited (GW1 for us, later for
+    a late joiner); the following GW starts with exactly 1 FT. Then each GW:
+    FT' = min(5, max(FT - made, 0) + 1), except WC/FH weeks where the count is
+    carried unchanged (official: "four saved ahead of GW29 ... activate the
+    Free Hit ... still have four free transfers for GW30").
+    """
     transfers_by_gw = {
         row["event"]: row.get("event_transfers", 0)
         for row in history.get("current", [])
     }
-    ft = 1  # after GW1 everyone has 1 FT
-    for gw in range(2, upcoming_gw):
+    first_gw = min(transfers_by_gw, default=1)
+    ft = 1  # after the first entered GW everyone has 1 FT
+    for gw in range(first_gw + 1, upcoming_gw):
         made = transfers_by_gw.get(gw, 0)
         chip = chips_by_gw.get(gw)
         if chip in ("wildcard", "free_hit"):

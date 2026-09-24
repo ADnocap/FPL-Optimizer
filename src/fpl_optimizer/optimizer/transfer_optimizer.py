@@ -59,6 +59,7 @@ def optimize_transfers(
     chip: str | None = None,
     top_per_pos: int = _TOP_PER_POSITION,
     max_transfers: int | None = None,
+    squad_teams: dict[int, int] | None = None,
 ) -> OptimizerResult:
     """Decide optimal transfers for one gameweek.
 
@@ -76,6 +77,11 @@ def optimize_transfers(
         Upper bound on the number of transfers. When set (and no WC/FH),
         the optimizer may make at most this many transfers. The optimizer
         can make fewer if not profitable. Default ``None`` = unconstrained.
+    squad_teams : dict[int, int] | None
+        element_id -> club for current squad members. Used when a squad
+        member is missing from *candidates* (e.g. a blank-GW player in the
+        historical backtest pool) so it still counts toward its real club's
+        3-player limit.
 
     Returns
     -------
@@ -98,20 +104,20 @@ def optimize_transfers(
 
     # Ensure all current squad members are in the pool
     # (they may not appear in GW data if they didn't play — add with 0 xP).
-    # Each placeholder gets its OWN fake club: a shared id would count all
-    # of them against one 3-per-club limit and make the problem infeasible
-    # when 4+ squad players blank (e.g. a cup-final blank GW).
-    placeholder_team = -1
+    # Their club must be the REAL one (3-per-club); if unknown, use a unique
+    # negative sentinel so unrelated placeholders never share one fake club
+    # (a shared id made 4+ blanking squad players infeasible).
+    squad_teams = squad_teams or {}
     for p in current_squad:
         if p.element_id not in cand_map:
+            team = squad_teams.get(p.element_id)
             cand_map[p.element_id] = PlayerCandidate(
                 element_id=p.element_id,
                 position=p.position,
                 price=p.selling_price,
-                team_id=placeholder_team,
+                team_id=team if team is not None else -p.element_id,
                 predicted_points=0.0,
             )
-            placeholder_team -= 1
 
     all_cands = list(cand_map.values())
     n = len(all_cands)
@@ -172,11 +178,13 @@ def optimize_transfers(
         )
 
     # Objective: XI points + captain double + failover/auto-sub EV - hits,
-    # with chip-aware terms.
+    # with chip-aware terms. Under Triple Captain the armband's extra is 2x
+    # and it passes to the vice at 3x too, so the failover EV doubles.
+    vice_weight = VICE_CAPTAIN_WEIGHT * (2 if chip == "triple_captain" else 1)
     objective = (
         pulp.lpSum(xp[i] * y[i] for i in range(n))
         + pulp.lpSum(xp[i] * c_var[i] for i in range(n))
-        + VICE_CAPTAIN_WEIGHT * pulp.lpSum(xp[i] * v_var[i] for i in range(n))
+        + vice_weight * pulp.lpSum(xp[i] * v_var[i] for i in range(n))
         - hit_expr
     )
     if bench_boost:

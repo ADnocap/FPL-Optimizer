@@ -243,7 +243,15 @@ class SeasonBacktester:
                 logger.warning("No candidates for GW%d, skipping", gw)
                 continue
 
-            transfer_result = optimize_transfers(state, candidates)
+            transfer_result = optimize_transfers(
+                state,
+                candidates,
+                squad_teams={
+                    p.element_id: self.loader.get_player_team(p.element_id)
+                    for p in state.squad.players
+                    if self.loader.get_player_team(p.element_id) is not None
+                },
+            )
             action = to_engine_action(transfer_result)
 
             state, step_result = self.engine.step(state, action)

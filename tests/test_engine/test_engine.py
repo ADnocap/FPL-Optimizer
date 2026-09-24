@@ -50,8 +50,16 @@ class TestEngineStep:
         engine = FPLGameEngine(loader)
         action = EngineAction()  # No transfers
 
+        sample_state.current_gw = 2
         new_state, _ = engine.step(sample_state, action)
         assert new_state.free_transfers == 2  # 1 + 1 = 2
+
+    def test_gw2_starts_with_one_free_transfer(self, loader, sample_state):
+        """FPL: unlimited changes before GW1, then exactly 1 FT for GW2."""
+        engine = FPLGameEngine(loader)
+        new_state, _ = engine.step(sample_state, EngineAction())
+        assert sample_state.current_gw == 1
+        assert new_state.free_transfers == 1
 
     def test_step_with_transfer(self, loader, sample_state):
         engine = FPLGameEngine(loader)
@@ -76,6 +84,7 @@ class TestEngineStep:
 
     def test_free_hit_reverts_squad(self, loader, sample_state):
         engine = FPLGameEngine(loader)
+        sample_state.current_gw = 2  # FH not playable in GW1
         original_ids = [p.element_id for p in sample_state.squad.players]
 
         # Use Free Hit and make a transfer
@@ -93,6 +102,7 @@ class TestEngineStep:
 
     def test_wildcard_no_hit(self, loader, sample_state):
         engine = FPLGameEngine(loader)
+        sample_state.current_gw = 2  # WC not playable in GW1
         sample_state.free_transfers = 1
         action = EngineAction(
             transfers_out=[7, 12],
@@ -181,7 +191,7 @@ class TestEnginePreseason:
         new_state, _ = engine.step(sample_state, action, preseason=True)
 
         # Wildcard should not be consumed
-        assert new_state.chips.is_available("wildcard", 1)
+        assert new_state.chips.is_available("wildcard", 2)
 
     def test_preseason_no_ft_banking(self, loader, sample_state):
         engine = FPLGameEngine(loader)

@@ -49,11 +49,10 @@ POINTS_OWN_GOAL = -2
 TRANSFER_HIT_COST = 4  # points deducted per extra transfer
 MAX_FREE_TRANSFERS = 5
 INITIAL_FREE_TRANSFERS = 1
-# FTs held DURING GW1 by a simulated season start: the GW1 squad is picked
-# freely (no transfers), and the engine's end-of-GW +1 then gives exactly the
-# 1 FT that FPL grants for GW2.  (Starting GW1 with INITIAL_FREE_TRANSFERS
-# would wrongly hand the backtest 2 FTs in GW2.)
-GW1_FREE_TRANSFERS = 0
+# FTs held DURING GW1 by a simulated season start (the GW1 squad is picked
+# freely). engine.step then sets exactly 1 FT for GW2, as FPL does, whatever
+# this value is.
+GW1_FREE_TRANSFERS = INITIAL_FREE_TRANSFERS
 
 # Chip names
 CHIP_WILDCARD = "wildcard"
@@ -61,6 +60,16 @@ CHIP_FREE_HIT = "free_hit"
 CHIP_BENCH_BOOST = "bench_boost"
 CHIP_TRIPLE_CAPTAIN = "triple_captain"
 ALL_CHIPS = [CHIP_WILDCARD, CHIP_FREE_HIT, CHIP_BENCH_BOOST, CHIP_TRIPLE_CAPTAIN]
+
+# First GW each chip may be played (API bootstrap chips[].start_event, 2026-27):
+# Wildcard/Free Hit are useless before the GW1 deadline (unlimited changes), so
+# the first-half WC/FH open at GW2; BB/TC are playable from GW1.
+CHIP_START_EVENT = {
+    CHIP_WILDCARD: 2,
+    CHIP_FREE_HIT: 2,
+    CHIP_BENCH_BOOST: 1,
+    CHIP_TRIPLE_CAPTAIN: 1,
+}
 
 # Season halves for chip availability
 FIRST_HALF_END = 19  # GW1-19

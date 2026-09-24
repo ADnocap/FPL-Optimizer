@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 from fpl_optimizer.utils.constants import (
     ALL_CHIPS,
+    CHIP_START_EVENT,
     INITIAL_FREE_TRANSFERS,
     STARTING_BUDGET,
     Position,
@@ -84,6 +85,9 @@ class ChipState:
         half = 0 if gw <= 19 else 1
         available = self._get_chip_list(chip)[half]
         if not available:
+            return False
+        # Wildcard / Free Hit cannot be played in GW1 (start_event=2)
+        if gw < CHIP_START_EVENT[chip]:
             return False
         # 2025-26: Free Hit cannot be used in both GW19 and GW20
         if chip == "free_hit" and self.free_hit_last_used_gw is not None:

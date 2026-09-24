@@ -12,7 +12,7 @@ Model (per horizon GW k, discount ``d_k = discount**k``):
 
 - squad ``x[i,k]`` (binary), lineup ``y[i,k]`` (binary), captain/vice/bench
   slots continuous (their sub-problems are transportation polytopes, integral
-  for integral ``x``/``y``), transfers in/out continuous linked to ``x``.
+  for integral ``x``/``y``), transfers in/out binary, linked to ``x``.
 - FT dynamics exactly as the engine/FPL: 1 new FT per GW, bank capped at 5
   (``MAX_FREE_TRANSFERS``), unused FTs carry, ``-4`` per transfer beyond the
   FTs held (no hit may be taken while FTs are left unused); Wildcard/Free Hit
@@ -363,8 +363,11 @@ def optimize_horizon(
     fh_k = [k for k in range(H) if chip_k[k] == CHIP_FREE_HIT]
     f = {(i, k): pulp.LpVariable(f"f_{i}_{k}", cat="Binary") for i in range(n) for k in fh_k}
     tr_k = [k for k in range(H) if chip_k[k] != CHIP_FREE_HIT]
-    tin = {(i, k): pulp.LpVariable(f"tin_{i}_{k}", 0, 1) for i in range(n) for k in tr_k}
-    tout = {(i, k): pulp.LpVariable(f"tout_{i}_{k}", 0, 1) for i in range(n) for k in tr_k}
+    # Binary, not continuous: with continuous tin/tout the LP could "half
+    # transfer" a held player (tin = tout = 0.5), which moves money when a
+    # selling price differs from the current price.
+    tin = {(i, k): pulp.LpVariable(f"tin_{i}_{k}", cat="Binary") for i in range(n) for k in tr_k}
+    tout = {(i, k): pulp.LpVariable(f"tout_{i}_{k}", cat="Binary") for i in range(n) for k in tr_k}
     bank = [pulp.LpVariable(f"bank_{k}", lowBound=0) for k in range(H)]
     ft = [None] + [pulp.LpVariable(f"ft_{k}", 0, MAX_FREE_TRANSFERS, cat="Integer")
                    for k in range(1, H + 1)]

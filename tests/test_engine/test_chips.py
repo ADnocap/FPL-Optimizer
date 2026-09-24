@@ -16,8 +16,15 @@ class TestChipAvailability:
     def test_all_chips_available_initially(self):
         chips = ChipState()
         for chip in ["wildcard", "free_hit", "bench_boost", "triple_captain"]:
-            assert chips.is_available(chip, 1)   # First half
+            assert chips.is_available(chip, 2)   # First half
             assert chips.is_available(chip, 20)  # Second half
+
+    def test_wildcard_free_hit_not_playable_gw1(self):
+        chips = ChipState()
+        assert not chips.is_available("wildcard", 1)
+        assert not chips.is_available("free_hit", 1)
+        assert chips.is_available("bench_boost", 1)
+        assert chips.is_available("triple_captain", 1)
 
     def test_chip_used_first_half(self):
         chips = ChipState()
@@ -67,11 +74,17 @@ class TestGW19Expiry:
 
 class TestActivateChip:
     def test_activate_wildcard(self, sample_state):
+        sample_state.current_gw = 2
         new_state = activate_chip(sample_state, "wildcard")
         assert new_state.active_chip == "wildcard"
-        assert not new_state.chips.is_available("wildcard", 1)
+        assert not new_state.chips.is_available("wildcard", 2)
+
+    def test_wildcard_rejected_in_gw1(self, sample_state):
+        with pytest.raises(ValueError, match="not available"):
+            activate_chip(sample_state, "wildcard")
 
     def test_activate_free_hit_stashes_squad(self, sample_state):
+        sample_state.current_gw = 2
         original_squad = sample_state.squad.copy()
         new_state = activate_chip(sample_state, "free_hit")
         assert new_state.active_chip == "free_hit"
@@ -81,6 +94,7 @@ class TestActivateChip:
             assert p.element_id == original_squad.players[i].element_id
 
     def test_cannot_use_two_chips(self, sample_state):
+        sample_state.current_gw = 2
         state = activate_chip(sample_state, "wildcard")
         with pytest.raises(ValueError, match="already using"):
             activate_chip(state, "bench_boost")
@@ -101,6 +115,7 @@ class TestActivateChip:
 class TestFreeHitRevert:
     def test_revert_squad(self, sample_state):
         # Activate FH, modify squad, then revert
+        sample_state.current_gw = 2
         state = activate_chip(sample_state, "free_hit")
         # Modify a player (simulate a transfer)
         original_id = state.squad.players[6].element_id
@@ -112,6 +127,7 @@ class TestFreeHitRevert:
 
     def test_revert_restores_bank(self, sample_state):
         """FH sales/purchases are undone: the bank returns to its pre-FH value."""
+        sample_state.current_gw = 2  # FH is not playable in GW1
         bank_before = sample_state.bank
         state = activate_chip(sample_state, "free_hit")
         state.bank = bank_before - 25  # FH squad cost 2.5m more than sold

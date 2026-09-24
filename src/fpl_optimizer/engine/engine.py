@@ -22,6 +22,7 @@ from fpl_optimizer.engine.transfers import (
     bank_free_transfers,
     update_selling_prices,
 )
+from fpl_optimizer.utils.constants import INITIAL_FREE_TRANSFERS
 
 
 class FPLGameEngine:
@@ -154,9 +155,14 @@ class FPLGameEngine:
 
         # 10. Update free transfers for next GW
         num_transfers = len(action.transfers_out)
-        state.free_transfers = bank_free_transfers(
-            state.free_transfers, num_transfers, is_wildcard, is_free_hit
-        )
+        if gw == 1:
+            # GW1 changes are unlimited (pre-deadline squad building); every
+            # manager then starts GW2 with exactly one free transfer.
+            state.free_transfers = INITIAL_FREE_TRANSFERS
+        else:
+            state.free_transfers = bank_free_transfers(
+                state.free_transfers, num_transfers, is_wildcard, is_free_hit
+            )
 
         # 11. Handle Free Hit revert
         if is_free_hit:

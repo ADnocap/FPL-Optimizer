@@ -5,8 +5,11 @@ MILP optimization -> printed recommendations.
 
 Modes
 -----
-Initial squad (GW1 / wildcard from scratch):
+Initial squad (GW1 only — budget is a flat --budget, default 100.0m):
     python scripts/gameweek.py --fresh-squad
+
+Wildcard / Free Hit (budget = bank + real selling prices, not 100.0m):
+    python scripts/gameweek.py --team-id 1234567 --chip wildcard
 
 Weekly transfers for a real team:
     python scripts/gameweek.py --team-id 1234567
@@ -107,11 +110,53 @@ def _override_captaincy(result, captain: str | None, vice: str | None,
     return dataclasses.replace(result, captain_id=cap_id, vice_captain_id=vice_id)
 
 
+def _sync_with_my_team(gs, my_team: dict) -> list[str]:
+    """Overwrite the public-API reconstruction with authenticated my-team values.
+
+    The public endpoints only let us *simulate* the FT bank and selling prices;
+    my-team is the source of truth (FT top-ups, price-rise rounding, anything
+    FPL changes mid-season). Returns a note per corrected value; raises
+    ValueError when the squad itself differs (moves already made on the site).
+    """
+    notes: list[str] = []
+    tr = my_team.get("transfers") or {}
+    if tr.get("made"):
+        raise ValueError(
+            f"{tr['made']} transfer(s) already made for this GW on the site — the "
+            "public squad is stale; undo them or plan this GW manually."
+        )
+    picks = {p["element"]: p for p in my_team.get("picks", [])}
+    ours = {p.element_id for p in gs.squad.players}
+    if picks and set(picks) != ours:
+        raise ValueError(
+            f"my-team squad differs from the public picks "
+            f"(+{sorted(set(picks) - ours)} / -{sorted(ours - set(picks))})"
+        )
+    limit = tr.get("limit")
+    if isinstance(limit, int) and limit != gs.free_transfers:
+        notes.append(f"free transfers {gs.free_transfers} -> {limit}")
+        gs.free_transfers = limit
+    bank = tr.get("bank")
+    if isinstance(bank, int) and bank != gs.bank:
+        notes.append(f"bank {gs.bank} -> {bank}")
+        gs.bank = bank
+    for p in gs.squad.players:
+        mp = picks.get(p.element_id, {})
+        sp = mp.get("selling_price")
+        if isinstance(sp, int) and sp != p.selling_price:
+            notes.append(f"selling price {p.element_id}: {p.selling_price} -> {sp}")
+            p.selling_price = sp
+        if isinstance(mp.get("purchase_price"), int):
+            p.purchase_price = mp["purchase_price"]
+    return notes
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--team-id", type=int, default=None)
     parser.add_argument("--fresh-squad", action="store_true",
-                        help="pick a full squad from scratch (GW1 or wildcard)")
+                        help="pick a full squad from scratch with --budget (GW1 "
+                             "only; for a wildcard use --team-id --chip wildcard)")
     parser.add_argument("--budget", type=int, default=1000,
                         help="budget in tenths for --fresh-squad")
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
@@ -222,6 +267,21 @@ def main() -> None:
             print(f"ERROR: chip '{args.chip}' is not available for GW{gw} "
                   "(already used, expired, or blocked this GW).")
             return
+        if args.apply:
+            # We are authenticated anyway: plan on the real FT count, bank and
+            # selling prices instead of the public-API reconstruction.
+            from fpl_optimizer.live.auth import FPLAuth
+            from fpl_optimizer.live.executor import get_my_team
+
+            try:
+                notes = _sync_with_my_team(
+                    entry_state.game_state, get_my_team(FPLAuth(), args.team_id)
+                )
+            except ValueError as exc:
+                print(f"ERROR: {exc}")
+                return
+            for note in notes:
+                print(f"my-team sync: {note}")
 
     # 1. Data refresh
     if not args.skip_build:
@@ -413,6 +473,22 @@ def main() -> None:
                   f"not {args.team_id} — aborting apply.")
             return
         my_team = get_my_team(auth, args.team_id)
+        # One chip per GW, and the my-team POST always carries "chip": posting
+        # null/another chip would cancel or replace one already active on the
+        # site (e.g. BB clicked in the app). Require the flag to match it.
+        api2engine = {"wildcard": "wildcard", "freehit": "free_hit",
+                      "bboost": "bench_boost", "3xc": "triple_captain"}
+        pending = [
+            api2engine.get(c.get("name"))
+            for c in my_team.get("chips", [])
+            if c.get("status_for_entry") == "active" or c.get("is_pending")
+        ]
+        pending = [c for c in pending if c]
+        if pending and args.chip not in pending:
+            print(f"ERROR: chip '{pending[0]}' is already active for GW{gw} on "
+                  f"the site. Re-run with --chip {pending[0]} (plans for it and "
+                  "keeps it) or cancel it on the site. Nothing submitted.")
+            return
         selling = {p["element"]: p["selling_price"] for p in my_team["picks"]}
         buy_price = {el["id"]: el["now_cost"] for el in bootstrap["elements"]}
 

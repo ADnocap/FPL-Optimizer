@@ -148,6 +148,11 @@ def main() -> None:
                     state,
                     build_candidate_pool(loader, gw, pred_for_gw(gw)),
                     max_transfers=args.max_transfers,
+                    squad_teams={
+                        p.element_id: loader.get_player_team(p.element_id)
+                        for p in state.squad.players
+                        if loader.get_player_team(p.element_id) is not None
+                    },
                 )
                 action = to_engine_action(opt)
             except Exception:
