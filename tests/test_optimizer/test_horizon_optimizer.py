@@ -51,6 +51,9 @@ def _state(ft: int = 1, bank: int = 0, selling: dict | None = None,
 
 
 def _solve(state, pool, gws, chip_plan=None, **cfg):
+    # mechanics tests: no regularisation unless a test asks for it
+    cfg.setdefault("hit_margin", 0.0)
+    cfg.setdefault("ft_value", 0.0)
     return optimize_horizon(state, pool, gws, chip_plan, HorizonConfig(**cfg))
 
 
@@ -64,6 +67,8 @@ class TestHelpers:
         assert parse_chip_plan("tc:7,wc:11,bb:12") == {
             7: "triple_captain", 11: "wildcard", 12: "bench_boost"}
         assert parse_chip_plan("fh:18") == {18: "free_hit"}
+        assert parse_chip_plan("tc7,wc11,3xc:25") == {
+            7: "triple_captain", 11: "wildcard", 25: "triple_captain"}
         assert parse_chip_plan(None) == {}
 
     def test_parse_chip_plan_rejects_bad_input(self):
@@ -137,6 +142,29 @@ class TestFreeTransfers:
         cautious = _solve(_state(ft=1), pool, [6], hit_margin=3.0)
         assert len(free.first.transfers_in) >= len(cautious.first.transfers_in)
         assert cautious.plan[0].hits == 0
+
+    def test_ft_value_rolls_marginal_free_transfer(self):
+        """A +1 pt upgrade is taken with no FT value, rolled with ft_value=1.5.
+
+        Everyone is certain to play (p_play=1), so bench value is 0 and the
+        only gain is 101 (5.0) replacing MID 11 (4.0) in the XI.
+        """
+        sure = [HorizonCandidate(c.element_id, c.position, c.price, c.team_id, c.xpts, (1.0,))
+                for c in _base_pool(1)]
+        pool = sure + [_cand(101, MID, 5.0, 1, p_play=1.0)]
+        assert _solve(_state(ft=1), pool, [6]).first.transfers_in == [101]
+        assert _solve(_state(ft=1), pool, [6], ft_value=1.5).first.transfers_in == []
+
+    def test_default_config_is_regularised(self):
+        cfg = HorizonConfig()
+        assert cfg.hit_margin > 0
+
+    def test_max_hits_zero_is_ft_only(self):
+        pool = _base_pool(2) + [_cand(101, MID, 10.0, 2), _cand(102, MID, 10.0, 2)]
+        res = _solve(_state(ft=1), pool, [6, 7], max_hits_per_gw=0)
+        assert all(p.hits == 0 for p in res.plan)
+        assert len(res.plan[0].transfers_in) == 1  # 1 FT now ...
+        assert len(res.plan[1].transfers_in) == 1  # ... and the next one later
 
     def test_max_transfers_per_gw(self):
         pool = _base_pool(1) + [_cand(101, MID, 10.0, 1), _cand(102, MID, 10.0, 1)]
@@ -272,6 +300,15 @@ class TestChips:
         chips.use_chip("triple_captain", 3)
         res = _solve(_state(ft=1, chips=chips), _base_pool(1), [6], {6: "tc"})
         assert res.plan[0].chip is None and res.first.chip is None
+
+    def test_same_chip_twice_in_one_half_only_first_kept(self):
+        res = _solve(_state(ft=1), _base_pool(3), [6, 7, 8], {6: "tc", 8: "tc"})
+        assert [p.chip for p in res.plan] == ["triple_captain", None, None]
+
+    def test_free_hit_not_in_both_gw19_and_gw20(self):
+        res = _solve(_state(ft=1, gw=19), _base_pool(2), [19, 20],
+                     {19: "free_hit", 20: "free_hit"})
+        assert [p.chip for p in res.plan] == ["free_hit", None]
 
     def test_chip_outside_horizon_ignored(self):
         res = _solve(_state(ft=1), _base_pool(2), [6, 7], {11: "wildcard"})

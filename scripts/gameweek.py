@@ -23,13 +23,17 @@ Useful flags:
 Multi-GW planning (receding horizon; default off = single-GW optimizer):
     --horizon N         plan transfers jointly over the next N GWs (FT
                         banking, hits, fixture swings, blanks/doubles);
-                        only this GW's moves are executed. 4 is a good value.
+                        only this GW's moves are executed. 3 is the
+                        backtested choice (scripts/backtest_horizon.py).
     --chip-plan SPEC    chip schedule the planner must respect, e.g.
                         "tc:7,wc:11,bb:12" (tc/wc/bb/fh). The plan is a human
                         decision (SEASON_GUIDE.md); chips outside the horizon
                         or already used are ignored. --chip overrides this GW.
     --discount D        per-GW discount of future points (default 0.85)
-    --hit-margin M      extra penalty per -4 hit (default 0)
+    --hit-margin M      extra penalty per -4 hit (default 4: a hit must
+                        promise > 8 planned points — guards against
+                        over-predicted buys; 0 overtrades badly in backtests)
+    --max-hits K        at most K hits per GW (0 = free transfers only)
     --ft-value V        value of each FT banked after the horizon (default 0)
 
 Find your team ID on fantasy.premierleague.com -> Points tab -> the number
@@ -132,9 +136,15 @@ def main() -> None:
                         help="multi-GW planner over N GWs (team mode only)")
     parser.add_argument("--chip-plan", default=None, metavar="SPEC",
                         help='chip schedule for the planner, e.g. "tc:7,wc:11,bb:12"')
-    parser.add_argument("--discount", type=float, default=0.85)
-    parser.add_argument("--hit-margin", type=float, default=0.0)
-    parser.add_argument("--ft-value", type=float, default=0.0)
+    parser.add_argument("--discount", type=float, default=None,
+                        help="per-GW discount (default: HorizonConfig)")
+    parser.add_argument("--hit-margin", type=float, default=None,
+                        help="extra penalty per -4 hit (default: HorizonConfig)")
+    parser.add_argument("--ft-value", type=float, default=None,
+                        help="value per FT banked after the horizon (default: HorizonConfig)")
+    parser.add_argument("--max-hits", type=int, default=None,
+                        help="max -4 hits per GW for the planner (0 = FT-only; "
+                             "default: HorizonConfig)")
     parser.add_argument("--apply", action="store_true",
                         help="submit to the FPL API (dry-run validation unless --yes; "
                              "needs FPL_REFRESH_TOKEN in .env — see live/auth.py)")
@@ -308,10 +318,15 @@ def main() -> None:
                 bootstrap, horizon_preds, horizon_gws,
                 min_chance=args.min_chance, always_include=squad_ids,
             )
-            cfg = HorizonConfig(
-                discount=args.discount, hit_margin=args.hit_margin,
-                ft_value=args.ft_value, max_transfers_per_gw=args.max_transfers,
-            )
+            cfg = HorizonConfig(max_transfers_per_gw=args.max_transfers)
+            if args.discount is not None:
+                cfg.discount = args.discount
+            if args.hit_margin is not None:
+                cfg.hit_margin = args.hit_margin
+            if args.max_hits is not None:
+                cfg.max_hits_per_gw = args.max_hits
+            if args.ft_value is not None:
+                cfg.ft_value = args.ft_value
             hres = optimize_horizon(gs, h_cands, horizon_gws, chip_plan, cfg)
             import dataclasses
 
@@ -320,7 +335,9 @@ def main() -> None:
                 hres.first, objective_value=hres.plan[0].expected_points)
             xp_by = {c.element_id: c.xpts for c in h_cands}
             print(f"Multi-GW plan (GW{horizon_gws[0]}-{horizon_gws[-1]}, discount "
-                  f"{args.discount}, solve {hres.solve_seconds:.0f}s, {hres.status}); "
+                  f"{cfg.discount}, hit margin {cfg.hit_margin}, max hits/GW "
+                  f"{cfg.max_hits_per_gw}, FT value {cfg.ft_value}, "
+                  f"solve {hres.solve_seconds:.0f}s, {hres.status}); "
                   "only the first GW is executed — re-run next week:")
             for k, p in enumerate(hres.plan):
                 names_in = ", ".join(elements[e]["web_name"] for e in p.transfers_in)

@@ -91,12 +91,20 @@ class HorizonConfig:
     """Planner knobs (defaults = recommended live settings)."""
 
     discount: float = 0.85
-    hit_margin: float = 0.0
+    # Regularisation against the optimiser's curse (as-of-t prediction errors
+    # repeat across the horizon, so planned gains are over-stated): backtests
+    # 2023-24..2025-26 — unregularised H=4 took ~370 pts of hits/season and
+    # lost ~160 pts/season vs the single-GW MILP; H=3 with a 4-pt margin (a hit
+    # must promise > 8 planned pts) was the most consistent config: +19/season vs
+    # the single-GW MILP over 9 replays (6 wins), +24/season with chip plans.
+    # See scripts/backtest_horizon.py.
+    hit_margin: float = 4.0
     ft_value: float = 0.0
     bench_mode: str = "dnp"  # "dnp" | "fixed" (legacy lineup_selector weights)
     default_p_play: float = 0.9
     vice_weight: float = 0.1
     max_transfers_per_gw: int | None = None
+    max_hits_per_gw: int | None = None  # 0 = never take a -4 (FT-only planning)
     top_per_pos: dict = field(default_factory=lambda: {
         Position.GK: 10, Position.DEF: 30, Position.MID: 35, Position.FWD: 20})
     value_per_pos: dict = field(default_factory=lambda: {
@@ -143,7 +151,9 @@ class HorizonResult:
 
 
 def parse_chip_plan(spec: str | None) -> dict[int, str]:
-    """Parse ``"tc:7,wc:11,bb:12"`` into ``{7: 'triple_captain', ...}``."""
+    """Parse ``"tc:7,wc:11,bb:12"`` (or ``"tc7,wc11"``) into ``{7: 'triple_captain', ...}``."""
+    import re
+
     plan: dict[int, str] = {}
     if not spec:
         return plan
@@ -151,11 +161,11 @@ def parse_chip_plan(spec: str | None) -> dict[int, str]:
         part = part.strip()
         if not part:
             continue
-        name, _, gw = part.partition(":")
-        chip = _CHIP_ALIASES.get(name.strip().lower())
-        if chip is None or not gw.strip().isdigit():
+        m = re.fullmatch(r"(3xc|[a-z_]+)\s*:?\s*(\d+)", part.lower())
+        chip = _CHIP_ALIASES.get(m.group(1)) if m else None
+        if chip is None:
             raise ValueError(f"Bad chip-plan entry {part!r} (use e.g. 'tc:7,wc:11')")
-        g = int(gw)
+        g = int(m.group(2))
         if g in plan:
             raise ValueError(f"Two chips planned for GW{g}: only one chip per GW")
         plan[g] = chip
@@ -278,21 +288,17 @@ def optimize_horizon(
 
     # ---- chips in the horizon (validated against availability) ----------
     chips: dict[int, str] = {}
-    for gw, chip in (chip_plan or {}).items():
+    avail = state.chips.copy()  # consumed in GW order: one use per chip per half
+    for gw, chip in sorted((chip_plan or {}).items()):
         chip = _CHIP_ALIASES.get(str(chip).lower(), chip)
         if chip not in _CHIPS:
             raise ValueError(f"Unknown chip {chip!r}")
         if gw not in gws:
             continue
-        if not state.chips.is_available(chip, gw):
+        if not avail.is_available(chip, gw):  # used/expired/FH GW19+20 rule
             logger.warning("Chip %s not available for GW%d — ignored", chip, gw)
             continue
-        if chip == CHIP_FREE_HIT and (
-            (gw == 20 and chips.get(19) == CHIP_FREE_HIT)
-            or (gw == 19 and chips.get(20) == CHIP_FREE_HIT)
-        ):
-            logger.warning("Free Hit cannot be played in both GW19 and GW20")
-            continue
+        avail.use_chip(chip, gw)
         chips[gw] = chip
     chip_k = [chips.get(gw) for gw in gws]
 
@@ -444,6 +450,8 @@ def optimize_horizon(
                 prob += n_tr <= cap_tr
                 prob += pt[k] >= n_tr - ft_k
                 prob += pt[k] <= n_tr
+                if cfg.max_hits_per_gw is not None:
+                    prob += pt[k] <= cfg.max_hits_per_gw
                 # no hit while free transfers are left unused
                 prob += pt[k] <= TRANSFERS_CAP_PER_GW * hflag[k]
                 prob += ft_k - n_tr + pt[k] <= MAX_FREE_TRANSFERS * (1 - hflag[k])

@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install in editable mode with dev dependencies
 pip install -e ".[dev]"          # also: .[prediction] .[optimizer] .[data]
 
-# Run all tests (305 as of 2026-09)
+# Run all tests (350 as of 2026-09-25)
 pytest
 
 # Run one area
@@ -87,6 +87,7 @@ FPL API ──LiveFPLCollector──> data/raw/2026-27/ (vaastav format + synthe
         ──PointPredictor──> element_id → xPts
 entry API ──fetch_entry_state──> GameState (squad/bank/FTs/chips)
 (GameState, candidates) ──optimize_transfers──> transfers/lineup/captain
+  (--horizon N: predict_horizon_live ──> optimize_horizon, chip plan given)
 ```
 
 ## Important Conventions

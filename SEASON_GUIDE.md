@@ -20,6 +20,35 @@ deadline, add `--skip-refresh` (saves ~10 min of element-summary downloads).
 Chip evaluation: re-run with `--chip wildcard|free_hit|bench_boost|triple_captain`
 and compare objective values. Sanity check vs FPL's own EP: `--ep`.
 
+### Multi-GW planner (`--horizon`)
+
+```bash
+# plan GW t..t+2 jointly around the approved chip schedule; executes GW t only
+python scripts/gameweek.py --team-id <ID> --horizon 3 --chip-plan "tc:7,wc:11,bb:12,fh:18"
+```
+
+Prints the plan for every horizon GW (FTs available, moves, hits, captain,
+xPts, bank) — only the first GW is applied; re-run every week (receding
+horizon). It knows the FT bank (max 5, WC/FH keep the count), selling prices,
+blanks/doubles in the fixture list, and plays around the given chips
+(WC/FH free transfers, FH squad reverts, BB bench counts, TC ×3). It does NOT
+choose chip weeks — the table below does.
+
+Backtests (leak-free models, 2023-24/2024-25/2025-26, rules engine,
+`scripts/backtest_horizon.py`): season results swing ±100 pts on small
+changes, so treat differences under ~50 as noise.
+- `--horizon 3` (defaults: discount 0.85, hit margin 4) ≈ +19 pts/season vs the
+  single-GW optimizer without chips (6/9 replays won) and +24 with a chip plan,
+  with half the hits (65 vs 121 pts/season).
+- Without the hit margin the planner overtrades: −160 pts/season.
+- The "max 1 transfer" policy is −66/season vs the unconstrained optimizer.
+- Don't forbid hits outright (`--max-hits 0`) without chips: it is fine in
+  quiet seasons but lost 310 pts in 2023-24, spread over the season and worst
+  in the spring doubles (GW34, a 7-team DGW: −57) where the single-GW run
+  paid hits to field doublers.
+Use it every week (it is at least as good as the single-GW run and better
+around chip weeks); cross-check hits with the single-GW run.
+
 ## One-time setup remaining (you)
 
 1. **Your FPL team ID**: after GW1, from the Points page URL
@@ -100,8 +129,11 @@ first-half chips die at the GW19 deadline.
 
 ## Known gaps (next build targets)
 
-1. **Multi-GW planning**: the MILP maximizes a single GW — no FT-banking value,
-   no fixture-swing planning, no chip scheduler. Biggest optimizer upgrade.
+1. **Chip scheduler**: the multi-GW planner (`--horizon`, built 2026-09-24)
+   plans transfers around a GIVEN chip schedule but does not choose chip
+   weeks. Its gains are modest because the model's future-GW predictions add
+   little beyond this week's (fixture swap: +0.02-0.04 Spearman vs persistence)
+   — better multi-week predictions are the lever now.
 2. **Bonus/BPS module**: 2026-27 BPS overhaul not modeled explicitly (only via
    realized totals in training data).
 3. **Price-change modeling**: selling-price management is reactive, not planned.

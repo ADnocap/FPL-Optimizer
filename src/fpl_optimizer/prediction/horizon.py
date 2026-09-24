@@ -385,16 +385,28 @@ def build_horizon_rows(
     t: int,
     horizon: int,
     dgw_mode: str = "row",
+    market: str = "keep",
 ) -> pd.DataFrame:
     """Feature rows for GWs t..t+horizon-1 as of the GW t deadline.
 
     Returns the rows with extra columns ``k`` (offset from t) and ``asof_gw``.
-    The k=0 rows are the real as-of-t rows (incl. odds/props when present);
-    k>=1 rows have fixture features swapped (see module docstring).
+    The k=0 rows are the real as-of-t rows (incl. odds/props when present,
+    unless ``market="drop"``); k>=1 rows have fixture features swapped (see
+    module docstring).  ``market="drop"`` blanks odds/props at k=0 too, so
+    every horizon GW is predicted on the same footing (no artificial
+    now-vs-later gap from the market features, which shift regulars'
+    predictions by ~0.1-0.25 pts with ~0.5 sd while barely changing ranking).
     """
     if dgw_mode not in ("row", "sum"):
         raise ValueError(f"dgw_mode must be 'row' or 'sum', got {dgw_mode!r}")
+    if market not in ("keep", "drop"):
+        raise ValueError(f"market must be 'keep' or 'drop', got {market!r}")
     base = asof_rows(features, t)
+    if market == "drop":
+        base = base.copy()
+        for col in ODDS_FEATURES + PROPS_FEATURES:
+            if col in base.columns:
+                base[col] = np.nan
     out = []
     cur = base[base["asof_gw"] == t].copy()
     if dgw_mode == "sum" and "is_dgw" in cur.columns and (cur["is_dgw"] == 1).any():
@@ -420,6 +432,7 @@ def predict_horizon(
     t: int,
     horizon: int,
     dgw_mode: str = "blend",
+    market: str = "keep",
 ) -> pd.DataFrame:
     """Predicted points per (element, GW) for GWs t..t+horizon-1.
 
@@ -431,13 +444,13 @@ def predict_horizon(
     if dgw_mode not in DGW_MODES:
         raise ValueError(f"dgw_mode must be one of {DGW_MODES}, got {dgw_mode!r}")
     if dgw_mode == "blend":
-        a = predict_horizon(predictor, features, ctx, t, horizon, "row")
-        b = predict_horizon(predictor, features, ctx, t, horizon, "sum")
+        a = predict_horizon(predictor, features, ctx, t, horizon, "row", market)
+        b = predict_horizon(predictor, features, ctx, t, horizon, "sum", market)
         m = a.merge(b, on=["element", "GW", "k"], how="outer", suffixes=("_r", "_s"))
         m["pred"] = m[["pred_r", "pred_s"]].mean(axis=1)
         m["p_play"] = m[["p_play_r", "p_play_s"]].max(axis=1)
         return m[["element", "GW", "k", "pred", "p_play"]]
-    rows = build_horizon_rows(features, ctx, t, horizon, dgw_mode)
+    rows = build_horizon_rows(features, ctx, t, horizon, dgw_mode, market)
     if rows.empty:
         return pd.DataFrame(columns=["element", "GW", "k", "pred", "p_play"])
     rows = rows.reset_index(drop=True)

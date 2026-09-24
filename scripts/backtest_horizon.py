@@ -22,9 +22,10 @@ Two steps (predictions are cached so the replay variants reuse them):
          --preds preds_2024-25.parquet --variants single1 single h4 h3:m1
 
    Variant syntax: ``single`` (current optimize_transfers, unconstrained),
-   ``single1`` (max 1 transfer/GW), ``hN[:dD][:mM][:fF][:bfixed][:cSPEC]``
-   (horizon N, discount D, hit margin M, FT terminal value F, legacy fixed
-   bench weights, chip plan SPEC like ``tc7-wc11-bb12``).
+   ``single1`` (max 1 transfer/GW), ``hN[:dD][:mM][:fF][:xK][:bfixed][:cSPEC]``
+   (horizon N, discount D, hit margin M, FT terminal value F, at most K hits
+   per GW, legacy fixed bench weights, chip plan SPEC like ``tc7-wc11-bb12``;
+   ``m100`` and ``x0`` both mean "never take a hit").
 
 GW1 squad: ``select_squad`` on the GW1 predictions for every variant (so the
 comparison isolates the transfer policy), 0 FTs during GW1 -> 1 FT for GW2
@@ -152,7 +153,8 @@ def cmd_predict(args: argparse.Namespace) -> None:
     for t in range(1, max_gw + 1):
         if not (season_df["GW"] == t).any():
             continue
-        hp = predict_horizon(model, season_df, ctx, t, args.horizon, args.dgw_mode)
+        hp = predict_horizon(model, season_df, ctx, t, args.horizon, args.dgw_mode,
+                             args.market)
         hp.insert(0, "t", t)
         out.append(hp)
     preds = pd.concat(out, ignore_index=True)
@@ -200,7 +202,8 @@ def parse_variant(spec: str) -> dict:
         v["horizon"] = int(head[1:])
     else:
         raise ValueError(spec)
-    v.update(discount=0.85, hit_margin=0.0, ft_value=0.0, bench_mode="dnp", chips="")
+    v.update(discount=0.85, hit_margin=0.0, ft_value=0.0, bench_mode="dnp", chips="",
+             max_hits=None)
     for p in parts[1:]:
         if p.startswith("d"):
             v["discount"] = float(p[1:])
@@ -210,6 +213,8 @@ def parse_variant(spec: str) -> dict:
             v["ft_value"] = float(p[1:])
         elif p == "bfixed":
             v["bench_mode"] = "fixed"
+        elif p.startswith("x"):
+            v["max_hits"] = int(p[1:])
         elif p.startswith("c"):
             v["chips"] = p[1:].replace("-", ",")
         else:
@@ -218,7 +223,9 @@ def parse_variant(spec: str) -> dict:
 
 
 class Replayer:
-    def __init__(self, season: str, preds: pd.DataFrame, data_dir: Path) -> None:
+    def __init__(self, season: str, preds: pd.DataFrame, data_dir: Path,
+                 init_budget: int = 1000) -> None:
+        self.init_budget = init_budget  # GW1 squad spend (rest stays in the bank)
         from fpl_optimizer.data.loader import SeasonDataLoader
         from fpl_optimizer.engine.engine import FPLGameEngine
 
@@ -273,7 +280,7 @@ class Replayer:
         from fpl_optimizer.utils.constants import GW1_FREE_TRANSFERS, STARTING_BUDGET
 
         first = self.gws[0]
-        init = select_squad(self.single_candidates(first), budget=STARTING_BUDGET)
+        init = select_squad(self.single_candidates(first), budget=self.init_budget)
         players = [PlayerSlot(e, self.loader.get_player_position(e),
                               self.price(e, first), self.price(e, first))
                    for e in init.squad_element_ids]
@@ -325,6 +332,7 @@ class Replayer:
                 squad_ids = {p.element_id for p in state.squad.players}
                 cfg = HorizonConfig(discount=v["discount"], hit_margin=v["hit_margin"],
                                     ft_value=v["ft_value"], bench_mode=v["bench_mode"],
+                                    max_hits_per_gw=v["max_hits"],
                                     time_limit=v.get("time_limit", 60))
                 res = optimize_horizon(state, self.horizon_candidates(gw, h, squad_ids),
                                        list(range(gw, gw + h)), chip_plan, cfg)
@@ -382,7 +390,7 @@ def _state_from_picks(picks_path: Path, replayer: Replayer, start_gw: int):
 
 def cmd_replay(args: argparse.Namespace) -> None:
     preds = pd.read_parquet(args.preds)
-    rep = Replayer(args.season, preds, args.data_dir)
+    rep = Replayer(args.season, preds, args.data_dir, init_budget=args.init_budget)
     summaries = []
     all_rows = []
     for spec in args.variants:
@@ -415,6 +423,8 @@ def main() -> None:
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--horizon", type=int, default=4)
     p.add_argument("--dgw-mode", default="blend", choices=["row", "sum", "blend"])
+    p.add_argument("--market", default="keep", choices=["keep", "drop"],
+                   help="drop = no odds/props at any horizon GW (consistent footing)")
     p.add_argument("--model", type=Path, default=None,
                    help="load this PointPredictor dir instead of training")
     p.add_argument("--max-gw", type=int, default=None)
@@ -428,6 +438,8 @@ def main() -> None:
     r.add_argument("--preds", type=Path, required=True)
     r.add_argument("--variants", nargs="+", default=["single1", "single", "h4"])
     r.add_argument("--time-limit", type=float, default=60.0)
+    r.add_argument("--init-budget", type=int, default=1000,
+                   help="GW1 squad spend in tenths (vary to get other starting squads)")
     r.add_argument("--start-picks", type=Path, default=None)
     r.add_argument("--start-gw", type=int, default=None)
     r.add_argument("--out", type=Path, default=None)
