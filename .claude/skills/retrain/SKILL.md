@@ -22,7 +22,8 @@ description: Retrain the FPL point-prediction model of record with the latest da
    ```
    - The recipe is `RECIPE` in the script (override with `--recipe '<json>'`):
      minutes-blend predictor, huber + min_child_samples 50, calibration on
-     the val split, unservable features excluded, and the current season's
+     the val split, EXCLUDED_FEATURES (unservable + h2h odds + reconstructed
+     team strengths) left out, and the current season's
      completed GWs added to TRAIN automatically (`include_current_season`;
      early stopping stays on the last 8 GWs of 2025-26 — never extend
      PROD_SEASONS with the in-progress season).
@@ -42,16 +43,24 @@ description: Retrain the FPL point-prediction model of record with the latest da
 
 ## Quality bars (history — only compare like-for-like)
 
-- Old leaky-xP models (prod_2026-27 of 2026-08-22 and earlier): inflated by
-  the same-GW fpl_xp leak — do not compare against them.
-- Leak-fixed L2 baseline, fast params (lr 0.05): per-GW Spearman 0.723 on
-  2025-26, 0.716 on 2024-25; full params 0.726 / 0.719.
-- Model-v5 recipe (minutes blend + huber + calibration + train-what-you-serve),
-  FAST smoke params (lr 0.05, 600 rounds) on the v3 feature cache: per-GW
-  Spearman 0.741 on 2025-26 / 0.732 on 2024-25 vs 0.722 / 0.712 for the
-  same-cache L2 point baseline; LIVE 2026-27 GW1-5 0.708 vs 0.681. Full-param
-  numbers: see the production training_report.json.
-- Anything materially worse than the current training_report.json = don't promote.
+- Models trained on vaastav's same-GW `fpl_xp` (every model before 2026-09-25,
+  now in `models/archive/`): leak-inflated — never compare against them. Served
+  as they run live they scored per-GW Spearman ~0.67-0.69 on holdouts.
+- **Model of record v5 (2026-09-25, `models/prod_2026-27`)**, full params,
+  121 features (minutes blend + huber + calibration; understat/FBref-only/legacy,
+  h2h odds and reconstructed strengths excluded; 2026-27 GW1-5 in TRAIN):
+  per-GW Spearman **0.742** (holdout 2025-26), **0.732** (2024-25, `--second-fold`),
+  **0.711** live 2026-27 GW1-5 (model trained on complete seasons only);
+  MAE 0.949 / 0.988; hauler MAE ~4.9 (the known weakness).
+- Rollback `models/prod_2026-27.prev`: same recipe with the 3 strength features
+  (124 features), 0.742 / 0.732 / 0.708.
+
+**Promotion gate** (the new training_report.json vs the current model's):
+per-GW Spearman on 2025-26 and 2024-25 within -0.003 of the current model or
+better, AND the LIVE check (current-season completed GWs) not worse by more than
+0.01 (few GWs = noisy). A retrain that only adds new 2026-27 rows should move
+these by less than ±0.005. Anything outside that: investigate before promoting
+(look at the data-health block of a dry `gameweek.py` run with the new model).
 
 ## Rules that bite
 

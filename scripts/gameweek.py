@@ -213,6 +213,9 @@ def main() -> None:
     parser.add_argument("--hit-margin", type=float, default=None,
                         help="extra decision penalty per -4 hit: a hit must promise "
                              "> 4 + margin points (default 0 single-GW, 4 horizon)")
+    parser.add_argument("--wc-move-cost", type=float, default=None,
+                        help="planner: decision cost per transfer in a Wildcard week "
+                             "(default: HorizonConfig)")
     parser.add_argument("--ft-value", type=float, default=None,
                         help="value per FT banked after the horizon (default: HorizonConfig)")
     parser.add_argument("--max-hits", type=int, default=None,
@@ -466,6 +469,8 @@ def main() -> None:
                 cfg.max_hits_per_gw = args.max_hits
             if args.ft_value is not None:
                 cfg.ft_value = args.ft_value
+            if args.wc_move_cost is not None:
+                cfg.wc_move_cost = args.wc_move_cost
             hres = optimize_horizon(gs, h_cands, horizon_gws, chip_plan, cfg)
             shown.update({c.element_id: c.xpts[0] for c in h_cands})
             points_label = "planned points this GW, XI + captain (+ bench if BB)"

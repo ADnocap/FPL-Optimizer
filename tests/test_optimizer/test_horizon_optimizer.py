@@ -333,3 +333,29 @@ class TestBenchValue:
                                        c.xpts, (0.5,)) for c in _base_pool(1)]
         risky = _solve(_state(ft=1), risky_pool, [6])
         assert risky.bench_weights[0][1][0] > safe.bench_weights[0][1][0]
+
+
+def test_wildcard_move_cost_prunes_marginal_swaps():
+    """A per-move cost in a WC week keeps only swaps whose gain clears it."""
+    from fpl_optimizer.engine.state import ChipState, GameState, PlayerSlot, Squad
+    from fpl_optimizer.optimizer.horizon_optimizer import (
+        HorizonCandidate, HorizonConfig, optimize_horizon,
+    )
+    from fpl_optimizer.utils.constants import Position
+
+    GK, DEF, MID, FWD = Position.GK, Position.DEF, Position.MID, Position.FWD
+    base = [(1, GK, 4.0), (2, GK, 1.0), (3, DEF, 4.0), (4, DEF, 4.0), (5, DEF, 4.0),
+            (6, DEF, 3.5), (7, DEF, 1.0), (8, MID, 5.0), (9, MID, 5.0), (10, MID, 4.5),
+            (11, MID, 4.0), (12, MID, 1.0), (13, FWD, 5.0), (14, FWD, 4.5), (15, FWD, 1.0)]
+    pool = [HorizonCandidate(e, p, 50, e, (x,), (0.95,)) for e, p, x in base]
+    # same price; replaces the 1.0 bench MID: +0.5 in the XI plus a stronger
+    # bench slot -> a gain of a few points, well under a 10-pt move cost
+    pool.append(HorizonCandidate(101, MID, 50, 101, (4.5,), (0.95,)))
+    players = [PlayerSlot(e, p, 50, 50) for e, p, _ in base]
+    sq = Squad(players, list(range(11)), list(range(11, 15)), 7, 8)
+    st = GameState(squad=sq, bank=0, free_transfers=1, chips=ChipState(), current_gw=11)
+    free = optimize_horizon(st, pool, [11], {11: "wildcard"}, HorizonConfig())
+    costed = optimize_horizon(st, pool, [11], {11: "wildcard"},
+                              HorizonConfig(wc_move_cost=10.0))
+    assert 101 in free.plan[0].transfers_in       # a free WC takes the upgrade
+    assert not costed.plan[0].transfers_in        # a move cost above its gain prunes it

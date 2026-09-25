@@ -99,6 +99,12 @@ class HorizonConfig:
     # the single-GW MILP over 9 replays (6 wins), +24/season with chip plans.
     # See scripts/backtest_horizon.py.
     hit_margin: float = 4.0
+    # Decision-only cost per transfer in a Wildcard week. Unconstrained, the
+    # WC rebuilds 10+ slots around the highest predictions and picks the
+    # players the model over-rates (winner's curse): in model-v5 season replays
+    # a GW11 WC LOST 47 pts/season on average (won 1/3 seasons). A per-move
+    # cost keeps only the swaps whose planned gain clears it.
+    wc_move_cost: float = 0.0
     ft_value: float = 0.0
     bench_mode: str = "dnp"  # "dnp" | "fixed" (legacy lineup_selector weights)
     default_p_play: float = 0.9
@@ -404,6 +410,8 @@ def optimize_horizon(
         obj.append(d * pulp.lpSum(terms))
         if k in pt:
             obj.append(-d * (TRANSFER_HIT_COST + cfg.hit_margin) * pt[k])
+        if cfg.wc_move_cost and chip_k[k] == CHIP_WILDCARD:
+            obj.append(-d * cfg.wc_move_cost * pulp.lpSum(tin[i, k] for i in range(n)))
     if cfg.ft_value:
         obj.append(cfg.ft_value * ft[H])
     prob += pulp.lpSum(obj)

@@ -25,7 +25,8 @@ Two steps (predictions are cached so the replay variants reuse them):
    ``single:m2`` = hit margin 2, the live default), ``single1`` (max 1
    transfer/GW), ``hN[:dD][:mM][:fF][:xK][:bfixed][:cSPEC]``
    (horizon N, discount D, hit margin M, FT terminal value F, at most K hits
-   per GW, legacy fixed bench weights, chip plan SPEC like ``tc7-wc11-bb12``;
+   per GW, legacy fixed bench weights, ``wC`` = cost C per Wildcard-week move,
+   chip plan SPEC like ``tc7-wc11-bb12``;
    ``m100`` and ``x0`` both mean "never take a hit").
 
 GW1 squad: ``select_squad`` on the GW1 predictions for every variant (so the
@@ -224,12 +225,14 @@ def parse_variant(spec: str) -> dict:
     else:
         raise ValueError(spec)
     v.update(discount=0.85, hit_margin=0.0, ft_value=0.0, bench_mode="dnp", chips="",
-             max_hits=None)
+             max_hits=None, wc_move_cost=0.0)
     for p in parts[1:]:
         if p.startswith("d"):
             v["discount"] = float(p[1:])
         elif p.startswith("m"):
             v["hit_margin"] = float(p[1:])
+        elif p.startswith("w"):
+            v["wc_move_cost"] = float(p[1:])
         elif p.startswith("f"):
             v["ft_value"] = float(p[1:])
         elif p == "bfixed":
@@ -360,6 +363,7 @@ class Replayer:
                 cfg = HorizonConfig(discount=v["discount"], hit_margin=v["hit_margin"],
                                     ft_value=v["ft_value"], bench_mode=v["bench_mode"],
                                     max_hits_per_gw=v["max_hits"],
+                                    wc_move_cost=v["wc_move_cost"],
                                     time_limit=v.get("time_limit", 60))
                 res = optimize_horizon(state, self.horizon_candidates(gw, h, squad_ids),
                                        list(range(gw, gw + h)), chip_plan, cfg)
