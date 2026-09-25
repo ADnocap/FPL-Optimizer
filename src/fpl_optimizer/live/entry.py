@@ -58,6 +58,35 @@ def _get(url: str) -> dict | list:
     return resp.json()
 
 
+def offline_fetcher(entry_dir):
+    """A ``fetcher`` for :func:`fetch_entry_state` that reads saved JSONs.
+
+    ``entry_dir`` holds the public-API responses: ``entry.json``,
+    ``history.json``, ``transfers.json`` and ``picks_gw{n}.json`` — no network.
+    """
+    import json
+    from pathlib import Path
+
+    d = Path(entry_dir)
+
+    def _read(url: str) -> dict | list:
+        tail = url.split("/entry/", 1)[1].strip("/").split("/")
+        if len(tail) == 1:
+            name = "entry.json"
+        elif tail[1] in ("history", "transfers"):
+            name = f"{tail[1]}.json"
+        elif tail[1] == "event" and len(tail) >= 4 and tail[3] == "picks":
+            name = f"picks_gw{tail[2]}.json"
+        else:
+            raise ValueError(f"offline_fetcher: unsupported endpoint {url}")
+        path = d / name
+        if not path.exists():
+            raise FileNotFoundError(f"offline_fetcher: {path} missing (for {url})")
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    return _read
+
+
 def _compute_free_transfers(
     history: dict, chips_by_gw: dict[int, str], upcoming_gw: int
 ) -> int:
@@ -89,6 +118,7 @@ def _compute_free_transfers(
 def fetch_entry_state(
     team_id: int,
     bootstrap: dict,
+    fetcher=None,
 ) -> LiveEntryState:
     """Fetch a team's live state from the public FPL API.
 
@@ -98,10 +128,13 @@ def fetch_entry_state(
         The FPL entry ID (visible in the URL on the Points page).
     bootstrap : dict
         Current bootstrap-static JSON (for prices and positions).
+    fetcher : callable(url) -> JSON, optional
+        Replaces the HTTP GET (e.g. :func:`offline_fetcher` for saved JSONs).
     """
-    entry = _get(f"{FPL_API_BASE}/entry/{team_id}/")
-    history = _get(f"{FPL_API_BASE}/entry/{team_id}/history/")
-    transfers = _get(f"{FPL_API_BASE}/entry/{team_id}/transfers/")
+    _get_json = fetcher or _get
+    entry = _get_json(f"{FPL_API_BASE}/entry/{team_id}/")
+    history = _get_json(f"{FPL_API_BASE}/entry/{team_id}/history/")
+    transfers = _get_json(f"{FPL_API_BASE}/entry/{team_id}/transfers/")
 
     current_event = entry.get("current_event")
     if not current_event:
@@ -111,11 +144,11 @@ def fetch_entry_state(
         )
     upcoming_gw = current_event + 1
 
-    picks_data = _get(f"{FPL_API_BASE}/entry/{team_id}/event/{current_event}/picks/")
+    picks_data = _get_json(f"{FPL_API_BASE}/entry/{team_id}/event/{current_event}/picks/")
     # Free Hit squads revert after the GW — the picks endpoint permanently
     # records the temporary FH squad, so read the REAL squad from the GW before.
     if picks_data.get("active_chip") == "freehit" and current_event > 1:
-        picks_data = _get(
+        picks_data = _get_json(
             f"{FPL_API_BASE}/entry/{team_id}/event/{current_event - 1}/picks/"
         )
     picks = picks_data["picks"]
