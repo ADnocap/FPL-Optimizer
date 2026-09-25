@@ -11,11 +11,15 @@ by ~1-2pp.  GW mapping comes from the season's fixtures.csv kickoff dates.
 
 With ``--include-upcoming`` the not-yet-played matches listed in
 football-data's ``fixtures.csv`` (pre-match prices) are added too, so the
-live season's upcoming GW gets odds features at the deadline.
+live season's upcoming GW gets odds features at the deadline. football-data
+only lists a weekend's fixtures ~2 days ahead; if ``--gw N`` is given and GW N
+is still not fully covered, the missing matches come from The Odds API's live
+h2h market (one call = 1 credit; needs ODDS_API_KEY in .env; Pinnacle if
+quoted, else the average over EU books).
 
 Usage:
     python scripts/collect_football_data_odds.py --season 2025-26
-    python scripts/collect_football_data_odds.py --season 2026-27 --include-upcoming
+    python scripts/collect_football_data_odds.py --season 2026-27 --include-upcoming --gw 6
 """
 
 from __future__ import annotations
@@ -35,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 REPO_ROOT = Path(__file__).resolve().parent.parent
 URL_TEMPLATE = "https://www.football-data.co.uk/mmz4281/{yy}/E0.csv"
 UPCOMING_URL = "https://www.football-data.co.uk/fixtures.csv"
+ODDS_API_LIVE = "https://api.the-odds-api.com/v4/sports/soccer_epl/odds"
 
 
 def season_to_code(season: str) -> str:
@@ -113,8 +118,88 @@ def _rows_to_gw_matches(
     return by_gw, unmapped
 
 
+def _odds_api_key() -> str:
+    import os
+
+    key = os.environ.get("ODDS_API_KEY", "")
+    env = REPO_ROOT / ".env"
+    if not key and env.exists():
+        for line in env.read_text(encoding="utf-8").splitlines():
+            if line.strip().startswith("ODDS_API_KEY="):
+                key = line.split("=", 1)[1].strip()
+    return key
+
+
+def odds_api_upcoming(season: str, data_dir: Path, gw: int) -> list[dict]:
+    """GW *gw*'s h2h odds from The Odds API live market (1 credit).
+
+    Pinnacle when it quotes the match, else the mean decimal price over the
+    EU books. Matches are assigned to GWs through the FPL fixture list.
+    """
+    key = _odds_api_key()
+    if not key:
+        raise RuntimeError("ODDS_API_KEY missing (.env)")
+    try:  # the OS trust store validates the API where certifi's bundle fails
+        import truststore
+
+        truststore.inject_into_ssl()
+    except ImportError:
+        pass
+    resp = requests.get(ODDS_API_LIVE, params={
+        "apiKey": key, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal",
+    }, timeout=60)
+    resp.raise_for_status()
+    return match_odds_api_events(resp.json(), season, data_dir, gw,
+                                 resp.headers.get("x-requests-remaining", "?"))
+
+
+def match_odds_api_events(events: list[dict], season: str, data_dir: Path, gw: int,
+                          credits_left="?") -> list[dict]:
+    """Odds API h2h events -> this repo's odds records for FPL GW *gw*."""
+    from fpl_optimizer.data.collectors.odds import odds_team_to_fpl_name
+
+    fx = pd.read_csv(data_dir / "raw" / season / "fixtures.csv")
+    teams = pd.read_csv(data_dir / "raw" / season / "teams.csv")
+    name_to_id = dict(zip(teams["name"], teams["id"]))
+    gw_pairs = {(int(r.team_h), int(r.team_a)) for r in fx[fx["event"] == gw].itertuples()}
+    out = []
+    for ev in events:
+        h, a = ev.get("home_team", ""), ev.get("away_team", "")
+        hid = name_to_id.get(odds_team_to_fpl_name(h), name_to_id.get(h))
+        aid = name_to_id.get(odds_team_to_fpl_name(a), name_to_id.get(a))
+        if (hid, aid) not in gw_pairs:
+            continue
+        books = {b["key"]: b for b in ev.get("bookmakers", [])}
+        chosen = [books["pinnacle"]] if "pinnacle" in books else list(books.values())
+        prices = {"home": [], "draw": [], "away": []}
+        for b in chosen:
+            for m in b.get("markets", []):
+                if m.get("key") != "h2h":
+                    continue
+                o = {x["name"]: x["price"] for x in m.get("outcomes", [])}
+                if h in o and a in o and "Draw" in o:
+                    prices["home"].append(o[h])
+                    prices["draw"].append(o["Draw"])
+                    prices["away"].append(o[a])
+        if not prices["home"]:
+            continue
+        mean = {k: sum(v) / len(v) for k, v in prices.items()}
+        out.append({
+            "event_id": f"oddsapi_{ev.get('id', '')}",
+            "commence_time": ev.get("commence_time", ""),
+            # FPL names: features/odds.py maps them straight to team ids
+            "home_team": odds_team_to_fpl_name(h),
+            "away_team": odds_team_to_fpl_name(a),
+            "home_odds": mean["home"], "draw_odds": mean["draw"], "away_odds": mean["away"],
+            "last_update": "",
+        })
+    print(f"Odds API: {len(out)} GW{gw} matches ({credits_left} credits left)")
+    return out
+
+
 def build_season_odds(
-    season: str, data_dir: Path, include_upcoming: bool = False
+    season: str, data_dir: Path, include_upcoming: bool = False,
+    gw: int | None = None,
 ) -> Path:
     """Write data/odds/{season}.json from football-data; returns the path.
 
@@ -145,11 +230,30 @@ def build_season_odds(
                     by_gw.setdefault(gw, []).append(m)
                     n_upcoming += 1
 
+    n_api = 0
+    if include_upcoming and gw is not None:
+        fx = pd.read_csv(fixtures_path)
+        needed = int((fx["event"] == gw).sum())
+        have = len(by_gw.get(str(gw), []))
+        if needed and have < needed:
+            try:
+                api = odds_api_upcoming(season, data_dir, gw)
+            except Exception as exc:  # no key / network (e.g. Zscaler) / quota
+                print(f"Odds API fallback for GW{gw} failed: {exc}")
+                api = []
+            got = {(m["home_team"], m["away_team"]) for m in by_gw.get(str(gw), [])}
+            for m in api:
+                if (m["home_team"], m["away_team"]) not in got:
+                    by_gw.setdefault(str(gw), []).append(m)
+                    n_api += 1
+            print(f"GW{gw} odds coverage: {have + n_api}/{needed} matches"
+                  + ("" if have + n_api >= needed else " - INCOMPLETE"))
+
     out_path = data_dir / "odds" / f"{season}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     ordered = {k: by_gw[k] for k in sorted(by_gw, key=int)}
     out_path.write_text(json.dumps(ordered, indent=1), encoding="utf-8")
-    print(f"Odds {season}: {n_played} played + {n_upcoming} upcoming matches across "
+    print(f"Odds {season}: {n_played} played + {n_upcoming} upcoming (+{n_api} Odds API) matches across "
           f"{len(by_gw)} GWs -> {out_path} ({unmapped} unmapped)")
     return out_path
 
@@ -160,8 +264,10 @@ def main() -> None:
     parser.add_argument("--data-dir", type=Path, default=REPO_ROOT / "data")
     parser.add_argument("--include-upcoming", action="store_true",
                         help="also add not-yet-played fixtures (live season)")
+    parser.add_argument("--gw", type=int, default=None,
+                        help="upcoming GW that must be covered (Odds API fallback)")
     args = parser.parse_args()
-    build_season_odds(args.season, args.data_dir, args.include_upcoming)
+    build_season_odds(args.season, args.data_dir, args.include_upcoming, args.gw)
 
 
 if __name__ == "__main__":
