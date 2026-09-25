@@ -52,9 +52,18 @@ def _regular_rows(df):
 
 
 def serving_reference(df, feature_names: list[str]) -> dict[str, dict[str, float]]:
-    """Per-feature non-null rate / std on *df* (training side of the check)."""
+    """Per-feature non-null rate / std on *df* (training side of the check).
+
+    With ``season``/``GW`` columns it also records ``const_gw_share``: the
+    share of training GWs in which the feature is constant across players
+    (1.0 for gw_phase, ~0.9 for is_dgw). A feature that is usually constant
+    within a GW is not flagged for being constant at a deadline.
+    """
     reg = _regular_rows(df)
     ref = {}
+    groups = None
+    if {"season", "GW"} <= set(reg.columns):
+        groups = reg.groupby(["season", "GW"])
     for f in feature_names:
         if f in reg.columns:
             col = reg[f]
@@ -62,6 +71,8 @@ def serving_reference(df, feature_names: list[str]) -> dict[str, dict[str, float
                 "nonnull": float(col.notna().mean()),
                 "std": float(col.std()) if col.notna().sum() > 1 else 0.0,
             }
+            if groups is not None:
+                ref[f]["const_gw_share"] = float((groups[f].nunique() <= 1).mean())
     return ref
 
 
@@ -89,7 +100,8 @@ def serving_health(gw_df, feature_names: list[str], reference: dict | None) -> l
             warnings.append(
                 f"{f}: {live_nn:.0%} populated live vs {ref['nonnull']:.0%} in training"
             )
-        elif live_nn > 0.5 and ref["std"] > 0 and float(reg[f].std() or 0.0) == 0.0:
+        elif (live_nn > 0.5 and ref["std"] > 0 and reg[f].nunique() <= 1
+              and ref.get("const_gw_share", 0.0) < 0.5):
             warnings.append(f"{f}: constant live ({reg[f].dropna().iloc[0]!r}), varies in training")
     return warnings
 

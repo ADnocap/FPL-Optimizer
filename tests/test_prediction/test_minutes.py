@@ -451,6 +451,49 @@ class TestRecipe:
 
 
 # ---------------------------------------------------------------------------
+# serving health with the blend's feature names
+# ---------------------------------------------------------------------------
+
+
+class TestServingHealth:
+    @staticmethod
+    def _frame(gws, x_const: bool) -> pd.DataFrame:
+        rng = np.random.default_rng(0)
+        rows = []
+        for gw in gws:
+            for e in range(60):
+                rows.append({"season": "2025-26", "GW": gw, "mins_rolling_3": 90.0,
+                             "gw_phase": gw / 38.0,
+                             "x": 1.0 if x_const else rng.normal(),
+                             "mh_lag1": np.nan if x_const else 90.0})
+        return pd.DataFrame(rows)
+
+    def test_within_gw_constant_features_not_flagged(self) -> None:
+        from fpl_optimizer.live.predict import serving_health, serving_reference
+
+        names = ["gw_phase", "x", "mh_lag1"]
+        ref = serving_reference(self._frame(range(1, 11), x_const=False), names)
+        assert ref["gw_phase"]["const_gw_share"] == 1.0
+        assert ref["x"]["const_gw_share"] == 0.0
+        live = self._frame([12], x_const=True)
+        warns = serving_health(live, names, ref)
+        assert any(w.startswith("x: constant live") for w in warns)
+        assert any(w.startswith("mh_lag1: 0% populated") for w in warns)
+        assert not any(w.startswith("gw_phase") for w in warns)
+        # references written before const_gw_share existed keep the old rule
+        old = {f: {k: v for k, v in r.items() if k != "const_gw_share"} for f, r in ref.items()}
+        assert any(w.startswith("gw_phase") for w in serving_health(live, names, old))
+
+    def test_blend_feature_names_are_pipeline_columns(self, blend_and_data) -> None:
+        from fpl_optimizer.live.predict import serving_health
+
+        m, df, _, _ = blend_and_data
+        gw = df[(df["season"] == df["season"].max()) & (df["GW"] == 5)]
+        assert not any("absent from the pipeline" in w
+                       for w in serving_health(gw, m.feature_names, None))
+
+
+# ---------------------------------------------------------------------------
 # horizon predictions with the minutes blend
 # ---------------------------------------------------------------------------
 

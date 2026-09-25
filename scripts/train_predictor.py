@@ -291,6 +291,21 @@ def per_gw_metrics(holdout: pd.DataFrame, preds: np.ndarray) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _gw_ranges(gws) -> str:
+    """[1, 2, 3, 7, 9, 10] -> '1-3,7,9-10'."""
+    out, run = [], []
+    for g in sorted(int(x) for x in gws):
+        if run and g == run[-1] + 1:
+            run.append(g)
+            continue
+        if run:
+            out.append(f"{run[0]}-{run[-1]}" if len(run) > 1 else str(run[0]))
+        run = [g]
+    if run:
+        out.append(f"{run[0]}-{run[-1]}" if len(run) > 1 else str(run[0]))
+    return ",".join(out)
+
+
 def _summ(pg: pd.DataFrame) -> dict:
     out = {"n_gw": int(len(pg))}
     for m in ["spearman", "pearson", "mae", "bias", "top10", "captain"]:
@@ -317,13 +332,14 @@ def evaluate(model, holdout: pd.DataFrame, label: str) -> dict:
     with_xp = pg[pg["xp_cov"] >= 0.5]
     without_xp = pg[pg["xp_cov"] < 0.5]
     split = {"with_xp": _summ(with_xp), "without_xp": _summ(without_xp)}
-    for name, part in (("with real xP  ", with_xp), ("without xP    ", without_xp)):
+    for name, key, part in (("with real xP", "with_xp", with_xp),
+                            ("without xP", "without_xp", without_xp)):
+        split[key]["gws"] = part["GW"].tolist()
         if len(part):
-            ps = _summ(part)
-            gws = f"GW{part['GW'].min()}-{part['GW'].max()}" if len(part) else ""
-            print(f"    {name} ({ps['n_gw']:>2} GWs, {gws}): Spearman {ps['spearman']:.4f}  "
-                  f"Pearson {ps['pearson']:.4f}  MAE {ps['mae']:.4f}  "
-                  f"top-10 {ps['top10']:.3f}  captain {ps['captain']:.2f}")
+            ps = split[key]
+            print(f"    {name:<12} ({ps['n_gw']:>2} GWs: {_gw_ranges(part['GW'])}): "
+                  f"Spearman {ps['spearman']:.4f}  Pearson {ps['pearson']:.4f}  "
+                  f"MAE {ps['mae']:.4f}  top-10 {ps['top10']:.3f}  captain {ps['captain']:.2f}")
     by_pos = {}
     for pos in ["GK", "DEF", "MID", "FWD"]:
         m = (holdout["position"] == pos).to_numpy() & valid
@@ -388,7 +404,7 @@ def main() -> None:
     recipe = resolve_recipe(args.recipe)
     print("Recipe: " + json.dumps({k: v for k, v in recipe.items() if k != "exclude_features"},
                                   default=_json_default))
-    print(f"  excluding {len(recipe['exclude_features'])} unservable features")
+    print(f"  exclude_features: {len(recipe['exclude_features'])} names")
     t_start = time.time()
     timings: dict[str, float] = {}
 
