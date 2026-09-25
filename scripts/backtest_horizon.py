@@ -21,8 +21,9 @@ Two steps (predictions are cached so the replay variants reuse them):
      python scripts/backtest_horizon.py replay --season 2024-25 \
          --preds preds_2024-25.parquet --variants single1 single h4 h3:m1
 
-   Variant syntax: ``single`` (current optimize_transfers, unconstrained),
-   ``single1`` (max 1 transfer/GW), ``hN[:dD][:mM][:fF][:xK][:bfixed][:cSPEC]``
+   Variant syntax: ``single`` (current optimize_transfers, unconstrained;
+   ``single:m2`` = hit margin 2, the live default), ``single1`` (max 1
+   transfer/GW), ``hN[:dD][:mM][:fF][:xK][:bfixed][:cSPEC]``
    (horizon N, discount D, hit margin M, FT terminal value F, at most K hits
    per GW, legacy fixed bench weights, chip plan SPEC like ``tc7-wc11-bb12``;
    ``m100`` and ``x0`` both mean "never take a hit").
@@ -345,7 +346,13 @@ class Replayer:
                 if chip and not state.chips.is_available(chip, gw):
                     chip = None
                 res = optimize_transfers(state, self.single_candidates(gw), chip=chip,
-                                         max_transfers=v["max_transfers"])
+                                         max_transfers=v["max_transfers"],
+                                         hit_margin=v["hit_margin"],
+                                         squad_teams={
+                                             sp.element_id: self.loader.get_player_team(sp.element_id)
+                                             for sp in state.squad.players
+                                             if self.loader.get_player_team(sp.element_id) is not None
+                                         })
                 action = to_engine_action(res)
             else:
                 h = min(v["horizon"], TOTAL_GAMEWEEKS - gw + 1)
