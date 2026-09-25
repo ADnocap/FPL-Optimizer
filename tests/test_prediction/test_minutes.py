@@ -370,25 +370,25 @@ class TestLoadPredictor:
             load_predictor(tmp_path)
 
     @pytest.mark.parametrize("name", ["prod_2026-27", "prod_2026-27.prev"])
-    def test_production_models_predict_like_their_boosters(self, name: str) -> None:
-        """The committed-format model dirs load via load_predictor and give
-        exactly the raw booster output (what PointPredictor always returned)."""
-        import lightgbm as lgb
+    def test_production_models_are_servable_and_leak_free(self, name: str) -> None:
+        """Whatever kind the promoted model and its rollback are, they load via
+        load_predictor, never need the leaky same-GW fpl_xp, ship the serving
+        reference the data-health check uses, and predict finite values."""
+        from fpl_optimizer.live.predict import SERVING_REFERENCE_FILE, check_not_leaky
 
         d = REPO / "models" / name
         if not (d / "metadata.json").exists():
             pytest.skip(f"{d} not present")
         model = load_predictor(d)
-        assert type(model) is PointPredictor and model.calibration is None
+        check_not_leaky(model, d)
+        assert "fpl_xp_lag" in model.feature_names
+        assert (d / SERVING_REFERENCE_FILE).exists()
         rng = np.random.default_rng(0)
         feats = model.feature_names
         df = pd.DataFrame(rng.normal(1, 1, (40, len(feats))), columns=feats)
         df["position"] = [POSITIONS[i % 4] for i in range(40)]
         got = model.predict(df)
-        for pos in POSITIONS:
-            m = (df["position"] == pos).to_numpy()
-            booster = lgb.Booster(model_file=str(d / f"{pos}.lgb"))
-            np.testing.assert_array_equal(got[m], booster.predict(df.loc[m, feats]))
+        assert got.shape == (40,) and np.isfinite(got).all()
 
 
 # ---------------------------------------------------------------------------

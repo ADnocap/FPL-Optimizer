@@ -17,7 +17,7 @@ Weekly transfers for a real team:
 Useful flags:
     --skip-refresh      don't re-download element summaries (~10 min)
     --model-dir PATH    predictor to use (default models/prod_2026-27 when it
-                        exists, else models/full_pregame)
+                        exists, else the .prev rollback)
     --max-transfers N   cap transfers considered (default: optimizer decides)
     --chip NAME         evaluate with a chip (wildcard/free_hit/bench_boost/
                         triple_captain)
@@ -75,7 +75,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DATA_DIR = REPO_ROOT / "data"
 # Prefer the model retrained with 2025-26 (DEFCON-era) data when available
 _PROD = REPO_ROOT / "models" / "prod_2026-27"
-DEFAULT_MODEL_DIR = _PROD if _PROD.exists() else REPO_ROOT / "models" / "full_pregame"
+# Rollback: models/prod_2026-27.prev (leak-free); older models are archived
+# and refused by the leak guard (they need the same-GW fpl_xp).
+DEFAULT_MODEL_DIR = _PROD if _PROD.exists() else REPO_ROOT / "models" / "prod_2026-27.prev"
 # Single-GW optimizer: extra decision penalty per hit beyond the real -4.
 # 0 = the plain 4-point rule. With the model-v5 predictor, margin 2 LOST in
 # all three leak-free season replays (2023-24/24-25/25-26: -48/-25/-43 net
