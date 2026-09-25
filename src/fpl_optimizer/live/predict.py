@@ -160,6 +160,8 @@ def predict_horizon_live(
     dgw_mode: str = "blend",
     health: list[str] | None = None,
     extras: dict[int, dict] | None = None,
+    predictor=None,
+    return_features: bool = False,
 ):
     """Predictions for GWs gw..gw+horizon-1 as of the GW ``gw`` deadline.
 
@@ -167,17 +169,25 @@ def predict_horizon_live(
     as-of rows) and swaps fixture features for later GWs — see
     :mod:`fpl_optimizer.prediction.horizon`.  Returns a DataFrame
     ``element, GW, k, pred, p_play`` (blank GWs absent = 0 points).
+
+    ``predictor``: an already-loaded predictor (anything with
+    ``.predict(df)`` and ``._feature_names``); default
+    ``PointPredictor.load(model_dir)``.  ``return_features=True`` returns
+    ``(predictions, feature_rows)`` (the season's pipeline rows, used by
+    callers that need the as-of rows, e.g. scripts/chip_eval.py).
     """
     import pandas as pd
 
     from fpl_optimizer.prediction.horizon import FixtureContext, predict_horizon
 
-    predictor = PointPredictor.load(model_dir)
+    if predictor is None:
+        predictor = PointPredictor.load(model_dir)
     id_resolver = IDResolver(data_dir)
     df = FeaturePipeline(data_dir, id_resolver, [season]).build()
     if df.empty or not (df["GW"] == gw).any():
         logger.warning("Live horizon: no feature rows for GW%d", gw)
-        return pd.DataFrame(columns=["element", "GW", "k", "pred", "p_play"])
+        empty = pd.DataFrame(columns=["element", "GW", "k", "pred", "p_play"])
+        return (empty, df) if return_features else empty
     missing = [c for c in predictor._feature_names if c not in df.columns]
     if missing:
         logger.warning(
@@ -198,7 +208,7 @@ def predict_horizon_live(
     preds = predict_horizon(predictor, df, ctx, gw, horizon, dgw_mode)
     logger.info("Live horizon: %d (element, GW) predictions for GW%d-%d",
                 len(preds), gw, gw + horizon - 1)
-    return preds
+    return (preds, df) if return_features else preds
 
 
 def ep_reference(bootstrap: dict, gw_is_next: bool = True) -> dict[int, float]:

@@ -33,6 +33,11 @@ vaastav format from the official FPL API (vaastav stopped weekly updates after
 model, fetches the real team state (public entry API), and prints recommended
 transfers / lineup / captain. `--fresh-squad` picks a full squad (GW1/wildcard).
 
+Chip decision points: `python scripts/chip_eval.py --team-id <ID>` prints the
+expected gain of every remaining chip in every GW (numbers only — the chip plan
+in SEASON_GUIDE.md is a human decision; offline: `--entry-dir/--bootstrap/--fixtures`;
+refuses a model with the leaky same-GW `fpl_xp`).
+
 Retrain the model of record with `python scripts/train_predictor.py`
 (→ `models/prod_2026-27/`; the only committed reproducible training recipe).
 
@@ -67,14 +72,18 @@ FTs, hit costs), `horizon_optimizer.py` (multi-period receding-horizon planner:
 FT banking to 5, hits, budget per GW, a GIVEN chip schedule WC/FH/BB/TC, bench
 value from the XI's DNP risk; execute GW t only, re-solve weekly),
 `lineup_selector.py` (XI+captain), `backtest.py` (full-season replay; season
-replays of the planner: `scripts/backtest_horizon.py`). Solver: PULP_CBC_CMD.
+replays of the planner: `scripts/backtest_horizon.py`), `chip_eval.py` (chip
+values per GW: TC/BB by Monte Carlo on the planned squad, WC/FH as
+optimize_horizon with vs without the chip, calibration split by season half).
+Solver: PULP_CBC_CMD.
 Chips are a human schedule (SEASON_GUIDE.md) — there is no chip *scheduler*.
 
 **`live/`** — Live-season glue: `entry.py` (public entry API → GameState with
 reconstructed purchase/selling prices, FT bank simulation, chips),
 `pool.py` (candidates from bootstrap with availability filtering/scaling;
 `build_live_horizon_candidates` for the planner), `predict.py` (upcoming-GW and
-horizon model predictions).
+horizon model predictions), `chip_inputs.py` (chip_eval glue: leak guard, DGW
+blend, optional P(play) classifier `prediction/play_model.py`, offline entry).
 
 `cluster/` — SLURM scripts for the LaRuche cluster.
 
