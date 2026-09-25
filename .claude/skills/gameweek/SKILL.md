@@ -33,9 +33,10 @@ description: Run the weekly FPL pre-deadline routine — refresh live data, pred
      empty/constant that it had in training (the silent failure that wrecked
      GW1-5 2026-27). Fix the data first (usually a failed odds/props/understat
      refresh or a missing snapshot) or present the plan with that caveat.
-   - **Hits**: the single-GW optimizer only takes a hit that promises > 4 + 2
-     points (`--hit-margin`, default 2); the planner uses 4 + 4. Still mention
-     every hit explicitly and compare with `--max-transfers <FTs>`.
+   - **Hits**: the single-GW optimizer takes a hit when it promises > 4 points
+     (`--hit-margin`, default 0 — a margin of 2 lost in all three model-v5 season
+     replays); the planner uses 4 + 4. Still mention every hit explicitly and
+     compare with `--max-transfers <FTs>`.
    - **Captaincy view**: model xPts vs FPL EP vs bookmaker P(goal). The call is the
      user's — in GW1-5 the human/market captain beat the (then leaky) model's
      every time. Never captain a flagged player.

@@ -68,11 +68,11 @@ DEFAULT_DATA_DIR = REPO_ROOT / "data"
 # Prefer the model retrained with 2025-26 (DEFCON-era) data when available
 _PROD = REPO_ROOT / "models" / "prod_2026-27"
 DEFAULT_MODEL_DIR = _PROD if _PROD.exists() else REPO_ROOT / "models" / "full_pregame"
-# Single-GW optimizer: a hit must promise > 4 + 2 points. On leak-free
-# holdout replays (252 seasons, 2024-25/2025-26) margin 2 tied the plain
-# 4-point rule overall and won on the noisy-prediction paths; live
-# predictions are noisier than the holdout, so it is the default here.
-SINGLE_GW_HIT_MARGIN = 2.0
+# Single-GW optimizer: extra decision penalty per hit beyond the real -4.
+# 0 = the plain 4-point rule. With the model-v5 predictor, margin 2 LOST in
+# all three leak-free season replays (2023-24/24-25/25-26: -48/-25/-43 net
+# vs margin 0); it had only tied with the older, noisier model.
+SINGLE_GW_HIT_MARGIN = 0.0
 
 
 def _fmt_player(eid: int, elements: dict, teams: dict, pts: dict) -> str:
@@ -221,7 +221,7 @@ def main() -> None:
                         help="per-GW discount (default: HorizonConfig)")
     parser.add_argument("--hit-margin", type=float, default=None,
                         help="extra decision penalty per -4 hit: a hit must promise "
-                             "> 4 + margin points (default 2 single-GW, 4 horizon)")
+                             "> 4 + margin points (default 0 single-GW, 4 horizon)")
     parser.add_argument("--ft-value", type=float, default=None,
                         help="value per FT banked after the horizon (default: HorizonConfig)")
     parser.add_argument("--max-hits", type=int, default=None,
