@@ -161,6 +161,7 @@ def match_odds_api_events(events: list[dict], season: str, data_dir: Path, gw: i
     fx = pd.read_csv(data_dir / "raw" / season / "fixtures.csv")
     teams = pd.read_csv(data_dir / "raw" / season / "teams.csv")
     name_to_id = dict(zip(teams["name"], teams["id"]))
+    id_to_name = dict(zip(teams["id"], teams["name"]))
     gw_pairs = {(int(r.team_h), int(r.team_a)) for r in fx[fx["event"] == gw].itertuples()}
     out = []
     for ev in events:
@@ -187,9 +188,9 @@ def match_odds_api_events(events: list[dict], season: str, data_dir: Path, gw: i
         out.append({
             "event_id": f"oddsapi_{ev.get('id', '')}",
             "commence_time": ev.get("commence_time", ""),
-            # FPL names: features/odds.py maps them straight to team ids
-            "home_team": odds_team_to_fpl_name(h),
-            "away_team": odds_team_to_fpl_name(a),
+            # this season's teams.csv names: features/odds.py maps them to ids
+            "home_team": id_to_name[hid],
+            "away_team": id_to_name[aid],
             "home_odds": mean["home"], "draw_odds": mean["draw"], "away_odds": mean["away"],
             "last_update": "",
         })
