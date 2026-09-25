@@ -18,8 +18,22 @@ from fpl_optimizer.prediction.features.opponent import compute_opponent_features
 from fpl_optimizer.prediction.features.odds import compute_odds_features
 from fpl_optimizer.prediction.features.props import compute_props_features
 from fpl_optimizer.prediction.features.players_raw import compute_players_raw_features
+from fpl_optimizer.prediction.features.minutes_history import (
+    MH_FEATURES,
+    MINUTES_LABELS,
+    add_depth_and_availability,
+    compute_minutes_history_features,
+)
 
 logger = logging.getLogger(__name__)
+
+# Bump whenever the pipeline's output changes (new/changed feature columns).
+# Feature caches (scripts/train_predictor.py --features-cache) store it and are
+# refused when it differs — a stale cache silently trains on the old features.
+#   1: legacy (<= 2026-09-24)
+#   2: fpl_xp -> fpl_xp_lag, understat same-day fix (season-hardening)
+#   3: minutes history (mh_/xs_/ps_/dp_/av_ features + min_total/min_max/mcls labels)
+FEATURE_PIPELINE_VERSION = 3
 
 # Position mapping (element_type int -> string label)
 _ELEMENT_TYPE_TO_POS = {1: "GK", 2: "DEF", 3: "MID", 4: "FWD"}
@@ -111,6 +125,10 @@ class FeaturePipeline:
                     n_filled, n_still_missing,
                 )
 
+        # Minutes depth-chart ranks (season, GW, team, position) + availability
+        # proxies — after the back-fill so 2016-19 rows have a position.
+        result = add_depth_and_availability(result)
+
         logger.info(
             "Feature pipeline complete: %d rows x %d columns",
             len(result), len(result.columns),
@@ -171,6 +189,17 @@ class FeaturePipeline:
 
         if merged_gw.empty:
             return pd.DataFrame()
+
+        # 2b. Minutes history (as-of features + the minutes labels) — needs the
+        # code and numeric team columns set above. A failure must not drop the
+        # season: log it and serve NaN (serving_health flags it live).
+        try:
+            minutes_df = compute_minutes_history_features(
+                merged_gw, self.data_dir, season, self.id_resolver,
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error("Minutes history failed for %s: %s", season, exc)
+            minutes_df = pd.DataFrame()
 
         # 3. Compute vaastav rolling features (uses element column)
         vaastav_df = compute_vaastav_features(merged_gw)
@@ -261,6 +290,17 @@ class FeaturePipeline:
             on=["element", "GW"],
             how="left",
         )
+
+        # Add minutes history + labels (on element, GW). The depth-chart /
+        # availability features are added in build(), after the position
+        # back-fill (they rank within team x position).
+        if not minutes_df.empty:
+            result = result.merge(minutes_df, on=["element", "GW"], how="left")
+        else:
+            for col in [c for c in MH_FEATURES if not c.startswith(("dp_", "av_"))]:
+                result[col] = float("nan")
+            for col in MINUTES_LABELS:
+                result[col] = float("nan")
 
         # Add derived interaction features
         result = self._add_derived_features(result)
@@ -462,3 +502,58 @@ class FeaturePipeline:
                 return pd.DataFrame()
         except Exception:
             return pd.DataFrame()
+
+
+class StaleFeatureCache(RuntimeError):
+    """A feature cache was built by a different pipeline version / season set."""
+
+
+def load_or_build_feature_cache(
+    path: Path,
+    data_dir: Path,
+    seasons: list[str],
+    rebuild: bool = False,
+) -> pd.DataFrame:
+    """FeaturePipeline output for *seasons*, cached as a parquet at *path*.
+
+    The multi-season build takes ~10 min; training re-runs reuse the cache.
+    The cache records :data:`FEATURE_PIPELINE_VERSION`, the season list and
+    the build time in the parquet metadata (``DataFrame.attrs``). A cache from
+    another pipeline version or season list raises :class:`StaleFeatureCache`
+    — rebuild it (``rebuild=True``) whenever the pipeline changes (bump
+    FEATURE_PIPELINE_VERSION with it) AND whenever new GWs have been played
+    (the cache is a snapshot of the season files at build time).
+    """
+    from datetime import datetime, timezone
+
+    path = Path(path)
+    if path.exists() and not rebuild:
+        df = pd.read_parquet(path)
+        meta = dict(df.attrs)
+        version = meta.get("feature_pipeline_version")
+        if version != FEATURE_PIPELINE_VERSION:
+            raise StaleFeatureCache(
+                f"{path} was built by feature pipeline v{version}, the code is "
+                f"v{FEATURE_PIPELINE_VERSION}: rebuild it (--rebuild-cache)"
+            )
+        if list(meta.get("seasons", [])) != list(seasons):
+            raise StaleFeatureCache(
+                f"{path} holds seasons {meta.get('seasons')}, need {list(seasons)}: "
+                "rebuild it (--rebuild-cache)"
+            )
+        logger.info("Loaded feature cache %s (built %s)", path, meta.get("built_utc"))
+        return df
+
+    df = FeaturePipeline(data_dir, IDResolver(data_dir), list(seasons)).build()
+    df.attrs = {
+        "feature_pipeline_version": FEATURE_PIPELINE_VERSION,
+        "seasons": list(seasons),
+        "built_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "data_dir": str(data_dir),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    df.to_parquet(tmp)
+    tmp.replace(path)
+    logger.info("Saved feature cache %s (%d rows x %d cols)", path, len(df), len(df.columns))
+    return df

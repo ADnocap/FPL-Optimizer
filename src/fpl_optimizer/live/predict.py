@@ -1,6 +1,7 @@
 """Pre-deadline predictions for the upcoming GW of the live season.
 
-Runs the trained LightGBM PointPredictor over the live-built season files
+Runs the trained predictor (any kind — ``minutes.load_predictor``: a
+PointPredictor or the MinutesBlendPredictor) over the live-built season files
 (which include synthetic rows for the upcoming GW — see
 ``fpl_optimizer.data.collectors.fpl_live``).  DGW players get their per-row
 prediction summed; BGW players simply have no row and fall back to 0.
@@ -14,9 +15,27 @@ from pathlib import Path
 
 from fpl_optimizer.prediction.feature_pipeline import FeaturePipeline
 from fpl_optimizer.prediction.id_resolver import IDResolver
-from fpl_optimizer.prediction.model import PointPredictor
+from fpl_optimizer.prediction.minutes import load_predictor
 
 logger = logging.getLogger(__name__)
+
+
+def _fill_missing_features(df, feature_names: list[str], where: str):
+    """Serve model features the pipeline no longer emits as NaN (logged).
+
+    Keeps an older model (e.g. a ``.prev`` rollback trained on a since-renamed
+    feature) servable instead of crashing; serving_health reports the gap.
+    """
+    missing = [c for c in feature_names if c not in df.columns]
+    if missing:
+        logger.warning(
+            "%s: model features missing from the pipeline output, served as NaN: %s",
+            where, missing,
+        )
+        df = df.copy()
+        for c in missing:
+            df[c] = float("nan")
+    return df
 
 # Written next to the model by scripts/train_predictor.py: per-feature
 # non-null rate and std on recent training rows of players who are playing.
@@ -33,9 +52,18 @@ def _regular_rows(df):
 
 
 def serving_reference(df, feature_names: list[str]) -> dict[str, dict[str, float]]:
-    """Per-feature non-null rate / std on *df* (training side of the check)."""
+    """Per-feature non-null rate / std on *df* (training side of the check).
+
+    With ``season``/``GW`` columns it also records ``const_gw_share``: the
+    share of training GWs in which the feature is constant across players
+    (1.0 for gw_phase, ~0.9 for is_dgw). A feature that is usually constant
+    within a GW is not flagged for being constant at a deadline.
+    """
     reg = _regular_rows(df)
     ref = {}
+    groups = None
+    if {"season", "GW"} <= set(reg.columns):
+        groups = reg.groupby(["season", "GW"])
     for f in feature_names:
         if f in reg.columns:
             col = reg[f]
@@ -43,6 +71,8 @@ def serving_reference(df, feature_names: list[str]) -> dict[str, dict[str, float
                 "nonnull": float(col.notna().mean()),
                 "std": float(col.std()) if col.notna().sum() > 1 else 0.0,
             }
+            if groups is not None:
+                ref[f]["const_gw_share"] = float((groups[f].nunique() <= 1).mean())
     return ref
 
 
@@ -70,7 +100,8 @@ def serving_health(gw_df, feature_names: list[str], reference: dict | None) -> l
             warnings.append(
                 f"{f}: {live_nn:.0%} populated live vs {ref['nonnull']:.0%} in training"
             )
-        elif live_nn > 0.5 and ref["std"] > 0 and float(reg[f].std() or 0.0) == 0.0:
+        elif (live_nn > 0.5 and ref["std"] > 0 and reg[f].nunique() <= 1
+              and ref.get("const_gw_share", 0.0) < 0.5):
             warnings.append(f"{f}: constant live ({reg[f].dropna().iloc[0]!r}), varies in training")
     return warnings
 
@@ -88,6 +119,13 @@ def _collect_extras(gw_df, id_resolver, season: str, extras: dict[int, dict]) ->
         rec = extras.setdefault(eid, {"props_xg": 0.0})
         rec["props_xg"] = rec.get("props_xg", 0.0) + float(xg)
         rec["p_goal"] = 1.0 - math.exp(-rec["props_xg"])
+
+
+def _features_of(predictor) -> list[str]:
+    """Input feature names of any predictor kind (duck-typed: ``feature_names``
+    on PointPredictor / MinutesBlendPredictor, ``_feature_names`` on stubs)."""
+    names = getattr(predictor, "feature_names", None)
+    return list(names if names is not None else predictor._feature_names)
 
 
 def _load_reference(model_dir: Path) -> dict | None:
@@ -113,7 +151,7 @@ def predict_upcoming_gw(
     are appended to it. If *extras* is a dict, it receives per-player display
     context from the same rows (see :func:`_collect_extras`).
     """
-    predictor = PointPredictor.load(model_dir)
+    predictor = load_predictor(model_dir)
     id_resolver = IDResolver(data_dir)
 
     pipeline = FeaturePipeline(data_dir, id_resolver, [season])
@@ -131,7 +169,7 @@ def predict_upcoming_gw(
         )
         return {}
 
-    warnings = serving_health(gw_df, predictor._feature_names, _load_reference(model_dir))
+    warnings = serving_health(gw_df, _features_of(predictor), _load_reference(model_dir))
     for w in warnings:
         logger.warning("Serving health: %s", w)
     if health is not None:
@@ -140,6 +178,7 @@ def predict_upcoming_gw(
     if extras is not None:
         _collect_extras(gw_df, id_resolver, season, extras)
 
+    gw_df = _fill_missing_features(gw_df, _features_of(predictor), "Live predict")
     preds = predictor.predict(gw_df)
     out: dict[int, float] = defaultdict(float)
     for pred, (_, row) in zip(preds, gw_df.iterrows()):
@@ -181,24 +220,17 @@ def predict_horizon_live(
     from fpl_optimizer.prediction.horizon import FixtureContext, predict_horizon
 
     if predictor is None:
-        predictor = PointPredictor.load(model_dir)
+        predictor = load_predictor(model_dir)
     id_resolver = IDResolver(data_dir)
     df = FeaturePipeline(data_dir, id_resolver, [season]).build()
     if df.empty or not (df["GW"] == gw).any():
         logger.warning("Live horizon: no feature rows for GW%d", gw)
         empty = pd.DataFrame(columns=["element", "GW", "k", "pred", "p_play"])
         return (empty, df) if return_features else empty
-    missing = [c for c in predictor._feature_names if c not in df.columns]
-    if missing:
-        logger.warning(
-            "Live horizon: model features missing from the pipeline output, "
-            "served as NaN: %s", missing,
-        )
-        for c in missing:
-            df[c] = float("nan")
+    df = _fill_missing_features(df, _features_of(predictor), "Live horizon")
     if extras is not None:
         _collect_extras(df[df["GW"] == gw], id_resolver, season, extras)
-    warnings = serving_health(df[df["GW"] == gw], predictor._feature_names,
+    warnings = serving_health(df[df["GW"] == gw], _features_of(predictor),
                               _load_reference(model_dir))
     for w in warnings:
         logger.warning("Serving health: %s", w)

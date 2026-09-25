@@ -26,8 +26,69 @@ DEFAULT_PARAMS = {
     "verbose": -1,
 }
 
-# Columns that are NOT features (metadata / target)
-_NON_FEATURE_COLS = {"code", "element", "season", "GW", "position", "target", "total_points"}
+# Columns that are NOT features (metadata / target / labels). The minutes
+# labels (realised minutes of the row's own GW, from features/minutes_history)
+# would be a direct target leak as features.
+_NON_FEATURE_COLS = {
+    "code", "element", "season", "GW", "position", "target", "total_points",
+    "min_total", "min_max", "mcls",
+}
+
+# LightGBM aliases of the boosting-round count. In LightGBM 4.x an alias in
+# params OVERRIDES lgb.train(num_boost_round=...), so fixed-round refits must
+# strip them and pass num_iterations explicitly.
+_NUM_ITER_ALIASES = {
+    "n_estimators", "num_iterations", "num_iteration", "n_iter", "num_tree",
+    "num_trees", "num_round", "num_rounds", "nrounds", "num_boost_round", "max_iter",
+}
+
+
+def fit_calibration(raw: np.ndarray, y: np.ndarray) -> dict:
+    """Monotone quadratic map raw prediction -> points, fitted by least squares.
+
+    Robust losses (huber) predict near the conditional median, well below the
+    mean of the right-skewed FPL points; the MILP needs points on the real
+    scale (hits cost 4, bench EV). ``y = c0 + c1*x + c2*x^2`` is kept strictly
+    increasing (ranking unchanged): the quadratic is used only when it curves
+    up with its vertex more than 1 point below the smallest raw prediction
+    (predictions below the vertex are clamped to it at apply time); otherwise
+    a linear fit. Fit on the early-stopping validation split, never on test
+    rows.
+    """
+    raw = np.asarray(raw, dtype=float)
+    y = np.asarray(y, dtype=float)
+    ok = np.isfinite(raw) & np.isfinite(y)
+    raw, y = raw[ok], y[ok]
+    if len(raw) < 10 or np.ptp(raw) <= 0:
+        raise ValueError("calibration needs >= 10 finite, non-constant predictions")
+    c2, c1, c0 = np.polyfit(raw, y, 2)
+    vertex = None
+    if c2 > 0 and -c1 / (2 * c2) < raw.min() - 1.0:
+        vertex = float(-c1 / (2 * c2))
+    else:
+        c2 = 0.0
+        c1, c0 = np.polyfit(raw, y, 1)
+        if c1 <= 0:
+            raise ValueError(f"calibration is not increasing (slope {c1:.3f})")
+    return {
+        "type": "quad",
+        "coef": [float(c2), float(c1), float(c0)],
+        "vertex": vertex,
+        "n": int(len(raw)),
+        "raw_range": [float(raw.min()), float(raw.max())],
+    }
+
+
+def apply_calibration(raw: np.ndarray, calibration: dict | None) -> np.ndarray:
+    """Apply a :func:`fit_calibration` map; identity when *calibration* is None."""
+    raw = np.asarray(raw, dtype=float)
+    if not calibration:
+        return raw
+    c2, c1, c0 = calibration["coef"]
+    vertex = calibration.get("vertex")
+    # Below the vertex the parabola would turn back up: clamp (monotone guard)
+    x = raw if vertex is None else np.maximum(raw, vertex)
+    return c0 + c1 * x + c2 * x * x
 
 
 class PointPredictor:
@@ -53,10 +114,19 @@ class PointPredictor:
         self.early_stopping_rounds = early_stopping_rounds
         self._models: dict[str, object] = {}  # position -> lgb.Booster
         self._feature_names: list[str] = []
+        # Optional monotone raw -> points map (fit_calibration); None = identity
+        self.calibration: dict | None = None
+
+    kind = "point"
 
     @property
     def is_trained(self) -> bool:
         return len(self._models) > 0
+
+    @property
+    def feature_names(self) -> list[str]:
+        """Pipeline columns the model reads (serving-health checks)."""
+        return list(self._feature_names)
 
     def train(
         self,
@@ -152,8 +222,63 @@ class PointPredictor:
 
         return results
 
+    def best_iterations(self) -> dict[str, int]:
+        """Per-position boosting rounds in use (the early-stopped best)."""
+        return {
+            pos: int(b.best_iteration or b.current_iteration())
+            for pos, b in self._models.items()
+        }
+
+    def train_fixed_rounds(
+        self,
+        train_df: pd.DataFrame,
+        rounds: dict[str, int],
+        sample_weight: np.ndarray | pd.Series | None = None,
+    ) -> None:
+        """Retrain each position booster for exactly ``rounds[pos]`` iterations.
+
+        No validation / early stopping: the optional refit of the in-season
+        recipe (train+val at the early-stopped best iteration). Keeps the
+        current :attr:`calibration`.
+        """
+        import lightgbm as lgb
+
+        self._feature_names = [c for c in train_df.columns if c not in _NON_FEATURE_COLS]
+        base = {k: v for k, v in self.params.items() if k not in _NUM_ITER_ALIASES}
+        w = None if sample_weight is None else np.asarray(sample_weight, dtype=np.float64)
+        self._models = {}
+        for pos in POSITIONS:
+            m = (train_df["position"] == pos).to_numpy()
+            if not m.any() or pos not in rounds:
+                continue
+            ds = lgb.Dataset(
+                train_df.loc[m, self._feature_names], label=train_df.loc[m, "target"],
+                weight=None if w is None else w[m],
+            )
+            self._models[pos] = lgb.train(
+                {**base, "num_iterations": max(1, int(rounds[pos]))}, ds,
+            )
+
+    def refit(self, train_df: pd.DataFrame, val_df: pd.DataFrame) -> dict[str, int]:
+        """Retrain on train+val at the early-stopped best iterations."""
+        best = self.best_iterations()
+        self.train_fixed_rounds(pd.concat([train_df, val_df]), best)
+        return best
+
+    def fit_calibration(self, val_df: pd.DataFrame) -> dict:
+        """Fit :attr:`calibration` on held-out rows (the early-stopping split)."""
+        raw = self.predict_raw(val_df)
+        self.calibration = fit_calibration(raw, val_df["target"].to_numpy(float))
+        return self.calibration
+
     def predict(self, df: pd.DataFrame) -> np.ndarray:
-        """Predict total_points for each row.
+        """Predicted points: the raw model output through :attr:`calibration`
+        (identity when there is none, e.g. every model saved before it existed).
+        """
+        return apply_calibration(self.predict_raw(df), self.calibration)
+
+    def predict_raw(self, df: pd.DataFrame) -> np.ndarray:
+        """Predict total_points for each row, uncalibrated.
 
         Routes each row to the position-specific model. Rows with unknown
         position get prediction 2.0 (league average).
@@ -202,9 +327,11 @@ class PointPredictor:
             json.dump(self._feature_names, f)
 
         metadata = {
+            "kind": self.kind,
             "positions": list(self._models.keys()),
             "params": self.params,
             "n_features": len(self._feature_names),
+            "calibration": self.calibration,
         }
         with open(model_dir / "metadata.json", "w") as f:
             json.dump(metadata, f, indent=2)
@@ -237,6 +364,8 @@ class PointPredictor:
 
         predictor = cls(params=metadata.get("params", {}))
         predictor._feature_names = feature_names
+        # Models saved before calibration existed have no key -> identity
+        predictor.calibration = metadata.get("calibration")
 
         for pos in metadata.get("positions", []):
             model_path = model_dir / f"{pos}.lgb"

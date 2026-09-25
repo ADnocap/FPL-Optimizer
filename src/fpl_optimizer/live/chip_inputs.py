@@ -32,13 +32,14 @@ UNDERSTAT_FEATURES = (
 
 
 def load_predictor(model_dir: Path):
-    """The point predictor, loaded the way the weekly run loads it.
+    """The point predictor, loaded the way the weekly run loads it (either kind:
+    PointPredictor or MinutesBlendPredictor, dispatched on metadata ``kind``).
 
     Callers only use ``.predict(df)`` and ``._feature_names``.
     """
-    from fpl_optimizer.prediction.model import PointPredictor
+    from fpl_optimizer.prediction.minutes import load_predictor as _load
 
-    return PointPredictor.load(model_dir)
+    return _load(model_dir)
 
 
 def leaky_features(predictor) -> list[str]:
