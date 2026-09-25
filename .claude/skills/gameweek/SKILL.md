@@ -16,17 +16,17 @@ description: Run the weekly FPL pre-deadline routine — refresh live data, pred
 
 2. **Run the driver** (`FPL_TEAM_ID` = entry 8737706 is in `.env`):
    ```
-   python scripts/gameweek.py                       # single-GW optimizer (default)
-   python scripts/gameweek.py --horizon 3 --chip-plan "tc:7,wc:11,bb:12,fh:18"
+   python scripts/gameweek.py --team-id 8737706 --horizon 3 --chip-plan "<decided chips>"
+   python scripts/gameweek.py --team-id 8737706 --skip-refresh          # single-GW cross-check
    ```
-   Run BOTH every week and compare. The multi-GW planner is roughly neutral in
-   normal weeks (backtests: +12 to +20 pts/season, within noise; lost all three
-   2023-24 starts) but it is the right tool around chip weeks — the WC11 → BB12/13
-   build needs it (bench valued for the BB week). Use the chip plan from
-   SEASON_GUIDE.md (human decision; never change it without the user).
-   - Chip weeks: `python scripts/chip_eval.py --team-id 8737706` prints the value of
-     every remaining chip per GW (calibrated columns are the ones to trust).
-   - Sanity check: `--ep` runs the same optimizer on FPL's own EP.
+   The 3-GW planner is the primary recommendation: it beat the single-GW
+   optimizer in every leak-free season replay (2023-24..2025-26, +60 to +149).
+   `--chip-plan` = chips from SEASON_GUIDE.md that are decided and fall within
+   the next 3 GWs (e.g. `"tc:7"` from GW5-7). Never change the plan without the user.
+   - Chip decision points: `python scripts/chip_eval.py --team-id 8737706` (the
+     calibrated columns are the ones to trust; replays can't credit clearing
+     injured players, so weigh the squad's actual problems).
+   - Sanity check: `--ep` runs the single-GW optimizer on FPL's own EP.
 
 3. **Read the output before presenting**:
    - **DATA HEALTH block**: any line there means the model is seeing a feature
@@ -48,10 +48,12 @@ description: Run the weekly FPL pre-deadline routine — refresh live data, pred
 
 4. **Present**: transfers (out→in with prices), XI + formation, captain/vice,
    bench order, expected points, hit cost if any, the data-health status, and the
-   decision-log path. Apply only when the user says so:
-   `python scripts/gameweek.py --apply --yes` (plans on the authenticated my-team
-   state; refuses if transfers were already made on the site or a different chip
-   is active there). Auth is `FPL_REFRESH_TOKEN` in `.env` (single-use rotating
+   decision-log path. Apply only when the user says so, with the SAME flags as the
+   recommended run: `python scripts/gameweek.py --team-id 8737706 --horizon 3
+   --chip-plan "<chips>" --apply --yes` (the planned chip for this GW is played; with
+   the single-GW run pass `--chip <name>` in a chip week). It plans on the
+   authenticated my-team state and refuses if transfers were already made on the
+   site or a different chip is active there. Auth is `FPL_REFRESH_TOKEN` in `.env` (single-use rotating
    token — see the live-season memory for re-extraction; close the site tab after).
    When recommending players by name, ALWAYS disambiguate with club + position
    (two Palmers exist: Cole Palmer CHE MID vs Alex Palmer IPS GK).

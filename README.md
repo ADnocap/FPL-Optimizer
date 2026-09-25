@@ -29,12 +29,15 @@ captain failover, FT banking, hits). Net points:
 
 | Strategy | 2023-24 | 2024-25 | 2025-26 |
 |---|---|---|---|
-| Multi-GW planner (`--horizon 3`, hit margin 4) | **2,291** | **2,414** | **2,108** |
-| Single-GW optimizer (4-point hit rule) | 2,174 | 2,303 | 2,086 |
-| Single-GW, at most 1 transfer/GW | 2,126 | 2,153 | 2,069 |
+| Multi-GW planner (`--horizon 3`, hit margin 4) | **2,293** | **2,467** | **2,129** |
+| Single-GW, at most 1 transfer/GW | 2,208 | 2,342 | 2,048 |
+| Single-GW optimizer (4-point hit rule) | 2,144 | 2,333 | 2,069 |
 
-Season-level differences under ~100 points are within the path noise of a single
-replay.
+The planner beat the single-GW optimizer in every season (+60 to +149). Otherwise,
+season-level differences under ~100 points are within the path noise of a single
+replay — including the chip schedules tested (a TC/BB/FH plan and a GW11 Wildcard
+moved the total by -145 to +84, averaging about zero), which is why chip timing
+stays a human decision informed by `chip_eval.py`.
 
 > **Withdrawn numbers.** Earlier versions of this README reported 2,918 / 3,171 on
 > 2024-25 and a 0.787 per-GW correlation. They came from a feature that leaked

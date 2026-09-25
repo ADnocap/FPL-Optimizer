@@ -6,6 +6,36 @@ techniques + synthesis). Baseline being improved: LightGBM 107 feats,
 2025-26 holdout MAE 0.825 / per-GW corr 0.631; single-GW MILP;
 honest chipless backtest 2,261 net (@1 FT) / 2,566 (unconstrained).
 
+## Status 2026-09-25 (read this first)
+
+The baseline numbers above were **leak-inflated**: vaastav's same-GW `xP` contains
+that GW's own points (FPL recomputes `ep_this` after the GW). Honest baseline after
+the fix (`fpl_xp_lag`): per-GW Spearman 0.719 / 0.726 on the 2024-25 / 2025-26
+holdouts (L2 LightGBM). What happened to the items below, all measured on the
+leak-free harness with adversarial re-verification (`reports/2026-27_gw1-5_evidence/`):
+
+- **#1 xMins — BUILT, the biggest win**: minutes model (P(0 / 1-59 / 60+), nested by
+  season) + factorized/stacked blend: +0.015 per-GW Spearman, 38/38 GWs on both
+  holdouts.
+- **#7 loss — huber (alpha 0.9) + min_child_samples 50 + monotone calibration WON**
+  (+0.012, overlapping with #1); tweedie and balanced weights rejected again.
+- **#3/#4 multi-horizon + multi-period MILP — BUILT and now the weekly default**:
+  with the v5 predictor the 3-GW planner beat the single-GW MILP in every season
+  (2,293 / 2,467 / 2,129 vs 2,144 / 2,333 / 2,069 for 2023-24 .. 2025-26).
+- **#5 chips — partly built** (planner plays a given schedule; `chip_eval.py` prices
+  every chip per GW). Chip effects in replays are within noise; timing stays human.
+- **#8 props — kept as a small input**; caveat: the 2025-26 backfill was quoted
+  mostly after the deadline (kickoff-2h), live quotes are pre-deadline.
+- **#9 / h2h odds — dropped** from the model (neutral, fragile to serve live).
+- **Understat per-match — dropped** (had a same-day leak; neutral once fixed).
+- **Prior-season FPL features / early-season shrinkage / captain upside heads /
+  recency weighting — tried, no gain.**
+- Model of record: `models/prod_2026-27` (v5): 0.742 / 0.732 holdout, 0.711 live GW1-5.
+
+Next levers: haulers (every model predicts ~3 for 5+ returns), a chip scheduler,
+bonus points, per-GW snapshots of FDR/set-piece orders (training uses season-end
+files — a small look-ahead shared by every baseline).
+
 ## Top 10 (ranked by expected impact for this repo)
 
 1. **Expected-minutes (xMins) model** — unanimous #1 across all reports.

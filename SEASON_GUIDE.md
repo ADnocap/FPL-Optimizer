@@ -5,49 +5,56 @@ The repo runs live this season. This is the operational handbook.
 ## Weekly loop (before every deadline — calendar events are already set)
 
 ```bash
-# The one command (computes transfers + lineup + captain for your real team):
-python scripts/gameweek.py --team-id <YOUR_ENTRY_ID>
-
-# Then either apply manually on the site, or fully via API:
-python scripts/gameweek.py --team-id <YOUR_ENTRY_ID> --apply          # dry-run validation
-python scripts/gameweek.py --team-id <YOUR_ENTRY_ID> --apply --yes    # commit for real
+# The weekly run: 3-GW planner, only this GW's moves are executed
+python scripts/gameweek.py --team-id <YOUR_ENTRY_ID> --horizon 3 --chip-plan "tc:7"
+# Cross-check: single-GW optimizer
+python scripts/gameweek.py --team-id <YOUR_ENTRY_ID> --skip-refresh
+# Apply (plans on the authenticated my-team state; commits in one go):
+python scripts/gameweek.py --team-id <YOUR_ENTRY_ID> --horizon 3 --chip-plan "tc:7" --apply --yes
 ```
 
-Timing: run it the evening before the deadline (post-press-conference news is in
-`chance_of_playing`), sanity-check again 1-2h before. If very close to the
-deadline, add `--skip-refresh` (saves ~10 min of element-summary downloads).
+`--chip-plan` lists only chips already decided that fall inside the next three
+GWs (the planner plays around them: TC ×3, BB bench counts, WC/FH free moves, FH
+revert). In a chip week the applied run plays the planned chip; with the
+single-GW run pass `--chip <name>` instead.
 
-Chip evaluation: re-run with `--chip wildcard|free_hit|bench_boost|triple_captain`
-and compare objective values. Sanity check vs FPL's own EP: `--ep`.
+Every run prints, in order:
+1. **DATA HEALTH** — features the model will see empty/constant vs its training
+   reference. Any line = fix the data first (or read the plan with that caveat).
+   Expected before props are quoted (Odds API player props appear ~2 days before a
+   weekend): the six `props_*` lines.
+2. Team state (bank, FTs), the multi-GW plan, transfers, XI, bench.
+3. **Captaincy view** — model xPts vs FPL's EP vs bookmaker P(goal). The call is yours.
+4. The decision-log path (`data/live/2026-27/decisions/`).
 
-### Multi-GW planner (`--horizon`)
+Timing: run it the evening before the deadline (post-press-conference flags),
+again 1-2 h before. `--skip-refresh` is refused until the summaries postdate the
+last GW's final scores (09:00 UK the day after its last match).
 
-```bash
-# plan GW t..t+2 jointly around the approved chip schedule; executes GW t only
-python scripts/gameweek.py --team-id <ID> --horizon 3 --chip-plan "tc:7,wc:11,bb:12,fh:18"
-```
+Flags: availability enters once, as a calibrated multiplier (75% flag → 0.40×,
+50% → 0.25×, 25% → 0.10×; a 75% flag meant ~25% chance of playing in GW1-5).
 
-Prints the plan for every horizon GW (FTs available, moves, hits, captain,
-xPts, bank) — only the first GW is applied; re-run every week (receding
-horizon). It knows the FT bank (max 5, WC/FH keep the count), selling prices,
-blanks/doubles in the fixture list, and plays around the given chips
-(WC/FH free transfers, FH squad reverts, BB bench counts, TC ×3). It does NOT
-choose chip weeks — the table below does.
+### Why the planner is the default
 
-Backtests (leak-free models, 2023-24/2024-25/2025-26, rules engine,
-`scripts/backtest_horizon.py`): season results swing ±100 pts on small
-changes, so treat differences under ~50 as noise.
-- `--horizon 3` (defaults: discount 0.85, hit margin 4) ≈ +19 pts/season vs the
-  single-GW optimizer without chips (6/9 replays won) and +24 with a chip plan,
-  with half the hits (65 vs 121 pts/season).
-- Without the hit margin the planner overtrades: −160 pts/season.
-- The "max 1 transfer" policy is −66/season vs the unconstrained optimizer.
-- Don't forbid hits outright (`--max-hits 0`) without chips: it is fine in
-  quiet seasons but lost 310 pts in 2023-24, spread over the season and worst
-  in the spring doubles (GW34, a 7-team DGW: −57) where the single-GW run
-  paid hits to field doublers.
-Use it every week (it is at least as good as the single-GW run and better
-around chip weeks); cross-check hits with the single-GW run.
+Leak-free season replays (evaluation model trained only on earlier seasons, every
+GW through the rules engine, `scripts/backtest_horizon.py`), net points:
+
+| | 2023-24 | 2024-25 | 2025-26 |
+|---|---|---|---|
+| `--horizon 3` (hit margin 4) | **2,293** | **2,467** | **2,129** |
+| single-GW, max 1 transfer | 2,208 | 2,342 | 2,048 |
+| single-GW (4-pt hit rule) | 2,144 | 2,333 | 2,069 |
+
+- The planner won every season (+60 to +149 vs single-GW). A 6-GW horizon did
+  not help; neither did a hit margin in the single-GW run.
+- Chip schedules in replays (TC7/BB12/FH18; a GW11 Wildcard) moved season totals
+  by -145 to +84 and average ~0: within single-replay noise, and replays have no
+  injury flags, so they cannot credit a Wildcard's real job (clearing unavailable
+  starters). Chip timing stays the plan below, checked with
+  `python scripts/chip_eval.py --team-id <ID>` at each decision point
+  (its calibrated columns: 2025-26 realised/predicted ratios, split by season half).
+- `--wc-move-cost C` makes each Wildcard-week move clear C planned points (off by
+  default — no evidence either way yet); worth considering when building WC1.
 
 ## One-time setup remaining (you)
 
@@ -64,23 +71,22 @@ around chip weeks); cross-check hits with the single-GW run.
    *Caveat: PL competition T&Cs void "script-generated entries" (prize
    eligibility, not bans — no documented ban for automating your own account).
    Keep volumes tiny; the site UI always shows what was submitted.*
-3. **(Optional) Odds**: free account at the-odds-api.com (Starter, 500
-   credits/mo — a live EPL h2h snapshot costs 1 credit/GW). Key → `.env`
-   `ODDS_API_KEY`. Your own ablation says odds add ~nothing; skip guilt-free.
+3. **(Optional) Player props**: The Odds API key in `.env` (`ODDS_API_KEY`) with a
+   prop-capable plan (~40 credits/GW). Props are a small input; if they are missing
+   the model degrades gracefully and the data-health block says so. The office
+   Zscaler network blocks the API — run from home. h2h match odds are NOT needed.
 
 ## Data & retraining
 
-- **2025-26 backfill: DONE** (vaastav complete season, understat league +
-  per-match, FotMob 27110, football-data odds 380/380).
-- **Model of record**: `models/prod_2026-27` — produced by
-  `python scripts/train_predictor.py` (RECIPE in the script: minutes-blend
-  predictor, huber + calibration, unservable features excluded, 10 complete
-  seasons + the current season's completed GWs; eval report in
-  `training_report.json`). `gameweek.py` picks it up automatically (any
-  model kind, via `load_predictor`).
-- **Mid-season retrain** (~GW10, GW19, GW30 — the in-season gain grows with
-  the rows): `/retrain` skill, i.e. `scripts/train_predictor.py
-  --features-cache <file> --rebuild-cache`. No understat collection needed.
+- **Model of record**: `models/prod_2026-27` — minutes-blend v5 (121 features),
+  trained by `scripts/train_predictor.py` on 2016-17..2025-26 + 2026-27 GW1-5.
+  Per-GW Spearman 0.742 / 0.732 on the 2025-26 / 2024-25 holdouts, 0.711 live GW1-5.
+  Rollback: `models/prod_2026-27.prev`. Pre-v5 models (trained on the leaky
+  same-GW xP) are in `models/archive/` and refused by the live leak guard.
+- **Retrain** at ~GW10, GW19 (before the chip expiry), GW30: `/retrain` skill, i.e.
+  `python scripts/train_predictor.py --features-cache <file> --rebuild-cache
+  --second-fold` (promotion gate in `.claude/skills/retrain/SKILL.md`). Nothing
+  beyond the FPL API is needed.
 - **Lockdown rule**: GW scores are final 09:00 UK the morning after the GW's
   last match — never rebuild training data before that.
 
@@ -132,11 +138,8 @@ first-half chips die at the GW19 deadline.
 
 ## Known gaps (next build targets)
 
-1. **Chip scheduler**: the multi-GW planner (`--horizon`, built 2026-09-24)
-   plans transfers around a GIVEN chip schedule but does not choose chip
-   weeks. Its gains are modest because the model's future-GW predictions add
-   little beyond this week's (fixture swap: +0.02-0.04 Spearman vs persistence)
-   — better multi-week predictions are the lever now.
-2. **Bonus/BPS module**: 2026-27 BPS overhaul not modeled explicitly (only via
-   realized totals in training data).
-3. **Price-change modeling**: selling-price management is reactive, not planned.
+1. **Chip scheduler**: chip weeks are a human decision; `chip_eval.py` prices them,
+   the planner plays around a given schedule.
+2. **Haulers**: every model under-predicts 5+ point returns (~3 predicted vs ~7.8
+   actual); captaincy relies on the captaincy view, not the point estimate alone.
+3. **Bonus/BPS module** and **price-change planning**: not modelled.
