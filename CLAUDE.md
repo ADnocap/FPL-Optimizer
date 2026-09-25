@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install in editable mode with dev dependencies
 pip install -e ".[dev]"          # also: .[prediction] .[optimizer] .[data]
 
-# Run all tests (350 as of 2026-09-25)
+# Run all tests (599 as of 2026-09-25)
 pytest
 
 # Run one area
@@ -52,10 +52,15 @@ vaastav, understat, fpl_api, fbref, fotmob, odds, id_mapping, plus
 directly from the FPL API for the current season.
 
 **`prediction/`** — LightGBM point predictor: `feature_pipeline.py` orchestrates
-feature modules (`features/vaastav|understat|prior_season|opponent|odds|players_raw`),
+feature modules (`features/vaastav|understat|prior_season|opponent|odds|props|players_raw|minutes_history`;
+`FEATURE_PIPELINE_VERSION` + `load_or_build_feature_cache`),
 `id_resolver.py` (element_id ↔ stable code ↔ understat/fbref ids; auto-loads
 `data/id_maps/live_element_code_*.csv` supplements built from bootstrap `code`),
-`model.py` (4 boosters, one per position; NaN-tolerant; selects features by name),
+`model.py` (`PointPredictor`: 4 boosters, one per position; NaN-tolerant; selects
+features by name; optional monotone calibration), `minutes.py` (`MinutesModel`
+P(0/1-59/60+) and `MinutesBlendPredictor` = the model of record's kind;
+**`load_predictor(model_dir)`** loads either kind — use it, never a class's `load`),
+`feature_sets.py` (`UNSERVABLE_FEATURES`, excluded from training),
 `integration.py` pre-computes a season's `(element_id, gw) → xPts` lookup (used by the backtest),
 `horizon.py` (multi-GW predictions as of a deadline: the as-of-t row with only
 the fixture features swapped per future fixture — opponent/venue/FDR/DGW, team
@@ -84,7 +89,7 @@ horizon model predictions).
 FPL API ──LiveFPLCollector──> data/raw/2026-27/ (vaastav format + synthetic
                               upcoming-GW rows, xP from pre-deadline snapshots)
         ──FeaturePipeline──> feature rows for upcoming GW
-        ──PointPredictor──> element_id → xPts
+        ──load_predictor(models/prod_2026-27)──> element_id → xPts
 entry API ──fetch_entry_state──> GameState (squad/bank/FTs/chips)
 (GameState, candidates) ──optimize_transfers──> transfers/lineup/captain
   (--horizon N: predict_horizon_live ──> optimize_horizon, chip plan given)

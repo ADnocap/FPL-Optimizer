@@ -73,11 +73,14 @@ around chip weeks); cross-check hits with the single-GW run.
 - **2025-26 backfill: DONE** (vaastav complete season, understat league +
   per-match, FotMob 27110, football-data odds 380/380).
 - **Model of record**: `models/prod_2026-27` — produced by
-  `python scripts/train_predictor.py` (10 seasons, includes fpl_xp; eval report
-  in `training_report.json`). `gameweek.py` picks it up automatically.
-- **Mid-season retrain** (~GW8, and at the January window): `/retrain` skill or
-  `scripts/train_predictor.py` after collecting 2026-27 understat per-match:
-  `python scripts/collect_data.py --sources understat --seasons 2026-27 --per-match`
+  `python scripts/train_predictor.py` (RECIPE in the script: minutes-blend
+  predictor, huber + calibration, unservable features excluded, 10 complete
+  seasons + the current season's completed GWs; eval report in
+  `training_report.json`). `gameweek.py` picks it up automatically (any
+  model kind, via `load_predictor`).
+- **Mid-season retrain** (~GW10, GW19, GW30 — the in-season gain grows with
+  the rows): `/retrain` skill, i.e. `scripts/train_predictor.py
+  --features-cache <file> --rebuild-cache`. No understat collection needed.
 - **Lockdown rule**: GW scores are final 09:00 UK the morning after the GW's
   last match — never rebuild training data before that.
 
