@@ -46,9 +46,18 @@ LEGACY_DETAIL = [
 H2H_ODDS = ["odds_team_win_prob", "odds_team_draw_prob", "odds_team_loss_prob",
             "odds_team_strength"]
 
+# Opponent team strengths (features/opponent.py from teams.csv). The 2026-27
+# API publishes only a 1-5 overall rating (strength_attack/defence = 0), which
+# fpl_live maps back to the old scale: 3 levels, no team at 5, Newcastle and
+# Brighton rated like promoted clubs -> live values sit ~0.4 SD off training.
+# Training also used END-of-season strengths (look-ahead). Dropping them is
+# neutral on both holdouts and +0.004 per-GW Spearman on the served live rows
+# (serving audit 2026-09-25). fdr (FPL's own per-fixture difficulty) stays.
+RECONSTRUCTED_STRENGTH = ["opp_strength", "opp_attack_strength", "opp_defence_strength"]
+
 # Features that cannot be served at a live 2026-27 deadline.
 UNSERVABLE_FEATURES = UNDERSTAT_ROLLING + PRIOR_FBREF_DEAD + LEGACY_DETAIL
 
 # Excluded from training by default (scripts/train_predictor.py
 # RECIPE["exclude_features"]).
-EXCLUDED_FEATURES = UNSERVABLE_FEATURES + H2H_ODDS
+EXCLUDED_FEATURES = UNSERVABLE_FEATURES + H2H_ODDS + RECONSTRUCTED_STRENGTH

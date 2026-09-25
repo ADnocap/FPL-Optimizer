@@ -51,6 +51,9 @@ def _regular_rows(df):
     return df
 
 
+EARLY_GW = 7  # GWs whose rolling windows are still filling
+
+
 def serving_reference(df, feature_names: list[str]) -> dict[str, dict[str, float]]:
     """Per-feature non-null rate / std on *df* (training side of the check).
 
@@ -72,7 +75,13 @@ def serving_reference(df, feature_names: list[str]) -> dict[str, dict[str, float
                 "std": float(col.std()) if col.notna().sum() > 1 else 0.0,
             }
             if groups is not None:
-                ref[f]["const_gw_share"] = float((groups[f].nunique() <= 1).mean())
+                const = groups[f].nunique() <= 1
+                ref[f]["const_gw_share"] = float(const.mean())
+                # early season separately: windowed deltas (bps_form_delta)
+                # are constant until ~GW7 in training too
+                early = const[const.index.get_level_values("GW") <= EARLY_GW]
+                if len(early):
+                    ref[f]["const_gw_share_early"] = float(early.mean())
     return ref
 
 
@@ -89,6 +98,7 @@ def serving_health(gw_df, feature_names: list[str], reference: dict | None) -> l
     missing = [f for f in feature_names if f not in gw_df.columns]
     if missing:
         warnings.append(f"{len(missing)} model features absent from the pipeline: {missing}")
+    early = "GW" in gw_df.columns and len(gw_df) and int(gw_df["GW"].max()) <= EARLY_GW
     for f in feature_names:
         if f not in reg.columns:
             continue
@@ -96,12 +106,20 @@ def serving_health(gw_df, feature_names: list[str], reference: dict | None) -> l
         ref = (reference or {}).get(f)
         if ref is None:
             continue
+        const_share = ref.get("const_gw_share_early" if early else "const_gw_share",
+                              ref.get("const_gw_share", 0.0))
         if ref["nonnull"] >= 0.5 and live_nn < ref["nonnull"] - 0.3:
             warnings.append(
                 f"{f}: {live_nn:.0%} populated live vs {ref['nonnull']:.0%} in training"
             )
+        elif ref["nonnull"] >= 0.2 and live_nn == 0.0:
+            # sparse-in-training sources that vanished entirely (e.g. the
+            # player-props snapshot failed: all props_* NaN this GW)
+            warnings.append(
+                f"{f}: EMPTY live vs {ref['nonnull']:.0%} in training (source missing?)"
+            )
         elif (live_nn > 0.5 and ref["std"] > 0 and reg[f].nunique() <= 1
-              and ref.get("const_gw_share", 0.0) < 0.5):
+              and const_share < 0.5):
             warnings.append(f"{f}: constant live ({reg[f].dropna().iloc[0]!r}), varies in training")
     return warnings
 

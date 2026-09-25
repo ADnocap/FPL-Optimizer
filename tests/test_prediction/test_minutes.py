@@ -399,13 +399,14 @@ class TestLoadPredictor:
 class TestRecipe:
     def test_exclusion_list_removes_columns(self) -> None:
         from fpl_optimizer.prediction.feature_sets import (
-            EXCLUDED_FEATURES, H2H_ODDS, UNSERVABLE_FEATURES,
+            EXCLUDED_FEATURES, H2H_ODDS, RECONSTRUCTED_STRENGTH, UNSERVABLE_FEATURES,
         )
 
         tp = _load_train_predictor()
         recipe = tp.resolve_recipe(None)
         assert recipe["exclude_features"] == EXCLUDED_FEATURES
-        assert set(EXCLUDED_FEATURES) == set(UNSERVABLE_FEATURES) | set(H2H_ODDS)
+        assert set(EXCLUDED_FEATURES) == (set(UNSERVABLE_FEATURES) | set(H2H_ODDS)
+                                          | set(RECONSTRUCTED_STRENGTH))
         assert "xg_rolling_5" in UNSERVABLE_FEATURES and "goals_vs_xg_5" in UNSERVABLE_FEATURES
         # h2h odds: neutral but a fragile live dependency -> excluded by default
         assert all(c.startswith("odds_team") for c in H2H_ODDS)
@@ -538,3 +539,36 @@ def test_horizon_carries_minutes_history_forward(blend_and_data) -> None:
     p0 = m.predict_components(k0.reset_index())["p_play"].to_numpy()
     p1 = m.predict_components(k1.loc[k0.index].reset_index())["p_play"].to_numpy()
     assert np.max(np.abs(p0 - p1)) < 0.35
+
+
+def test_serving_health_early_season_and_missing_sparse_source():
+    """bps_form_delta-like features are constant early in training too (no false
+    alarm at GW6); a sparse source that vanished entirely (props) IS flagged."""
+    import numpy as np
+    import pandas as pd
+
+    from fpl_optimizer.live.predict import serving_health, serving_reference
+
+    rng = np.random.default_rng(0)
+    rows = []
+    for season in ("2024-25", "2025-26"):
+        for gw in range(2, 30):
+            for e in range(60):
+                rows.append({"season": season, "GW": gw, "mins_rolling_3": 90.0,
+                             # constant until GW7 (windows still filling), varies after
+                             "delta": 0.0 if gw <= 7 else rng.normal(),
+                             # props: quoted for ~1/3 of rows
+                             "props_xg": rng.random() if e < 20 else np.nan})
+    ref = serving_reference(pd.DataFrame(rows), ["delta", "props_xg"])
+    assert ref["delta"]["const_gw_share_early"] == 1.0
+
+    def live(gw, props):
+        return pd.DataFrame([{"season": "2026-27", "GW": gw, "mins_rolling_3": 90.0,
+                              "delta": 0.0, "props_xg": (0.1 + i / 100 if props else np.nan)}
+                             for i in range(60)])
+
+    assert serving_health(live(6, True), ["delta", "props_xg"], ref) == []
+    late = serving_health(live(12, True), ["delta", "props_xg"], ref)
+    assert any(w.startswith("delta: constant live") for w in late)
+    missing = serving_health(live(6, False), ["delta", "props_xg"], ref)
+    assert any(w.startswith("props_xg: EMPTY live") for w in missing)
