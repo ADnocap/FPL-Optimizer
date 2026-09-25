@@ -80,9 +80,29 @@ def test_upcoming_row_ownership_is_reconstructed_not_rounded(tmp_path):
                "deadline_time": "2099-08-28T17:30:00Z"}]
     bootstrap = {"elements": elements, "teams": teams, "events": events,
                  "total_players": 11_000_000}
-    raw = LiveFPLCollector(data_dir=tmp_path, season=season).build_season_files(
-        bootstrap, fixtures, include_upcoming=True)
-    merged = pd.read_csv(raw / "gws" / "merged_gw.csv")
-    up = merged[merged["GW"] == 2].set_index("element")["selected"]
-    assert up[10] == 12_345 + 700 - 200          # exact, not 0.1% of 11M = 11,000
-    assert up[11] == int(0.2 / 100 * 11_000_000)  # no history: rounded percentage
+    collector = LiveFPLCollector(data_dir=tmp_path, season=season)
+
+    # without the GW1 deadline's manager count: rounded percentage (old rule)
+    raw = collector.build_season_files(bootstrap, fixtures, include_upcoming=True)
+    up = pd.read_csv(raw / "gws" / "merged_gw.csv").query("GW == 2").set_index("element")
+    assert up.loc[10, "selected"] == int(0.1 / 100 * 11_000_000)
+
+    # with it: last exact count + transfers in - out + new managers x share
+    collector.snapshot_dir.mkdir(parents=True)
+    (collector.snapshot_dir / "gw1_bootstrap.json").write_text(
+        json.dumps({"total_players": 10_000_000, "elements": [], "events": []}),
+        encoding="utf-8")
+    raw = collector.build_season_files(bootstrap, fixtures, include_upcoming=True)
+    up = pd.read_csv(raw / "gws" / "merged_gw.csv").query("GW == 2").set_index("element")
+    assert up.loc[10, "selected"] == 12_345 + 700 - 200 + round(0.001 * 1_000_000)
+    assert up.loc[11, "selected"] == int(0.2 / 100 * 11_000_000)  # no history
+
+
+def test_popular_players_keep_the_rounded_percentage():
+    """>= 0.75% owned: transfers miss part of the drift -> rounded % is closer."""
+    from fpl_optimizer.data.collectors.fpl_live import _deadline_selected
+
+    el = {"selected_by_percent": "12.4", "transfers_in_event": 90_000,
+          "transfers_out_event": 10_000}
+    assert _deadline_selected(el, (4, 1_200_000), 11_000_000, 10_900_000) == int(
+        0.124 * 11_000_000)

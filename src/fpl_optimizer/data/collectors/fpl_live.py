@@ -90,20 +90,36 @@ _STRENGTH_SCALE = {
 }
 
 
-def _deadline_selected(el: dict, last: tuple[int, int] | None, total_players: int) -> int:
+# Below this ownership the 0.1% rounding of selected_by_percent dominates the
+# error (a 0.04% player reads as 0), above it the transfer-based
+# reconstruction drifts (popular players' `selected` moves beyond net transfers).
+# Chosen on 2026-27 GW2-5 vs the exact history counts: hybrid MAE 3,770 vs
+# 4,793 rounded / 11,895 reconstructed; mean |log error| 0.053 vs 1.74 / 0.064.
+_RECONSTRUCT_BELOW_PCT = 0.75
+
+
+def _deadline_selected(el: dict, last: tuple[int, int] | None, total_players: int,
+                       total_players_then: int | None = None) -> int:
     """Ownership count at the upcoming deadline, as training rows record it.
 
     History rows carry the exact ``selected`` count; bootstrap only exposes
     ``selected_by_percent`` rounded to 0.1% (~11k managers), which quantises
     low-owned players (combiner experiment 2026-09-25: -0.024 per-GW Spearman
-    in simulation, -0.005 live). Reconstruct it instead: last exact count +
-    this window's transfers in - out. Players without history fall back to the
-    rounded percentage.
+    in simulation, -0.005 live). For players owned by < 0.75% reconstruct it:
+    last exact count + this window's transfers in - out + new managers x share
+    (new entrants added 15.2M selections in GW2-5 2026-27 while transfers net to
+    ~0). Above that, and without history or the previous deadline's manager
+    count, use the rounded percentage (review SP-2/LEAK-1: the reconstruction
+    alone was 4-5x worse than rounding for owners >= 1%).
     """
-    if last is not None:
-        return max(0, last[1] + int(el.get("transfers_in_event") or 0)
-                   - int(el.get("transfers_out_event") or 0))
-    return int(float(el.get("selected_by_percent") or 0) / 100.0 * total_players)
+    pct = float(el.get("selected_by_percent") or 0)
+    rounded = int(pct / 100.0 * total_players)
+    if last is None or total_players_then is None or pct >= _RECONSTRUCT_BELOW_PCT:
+        return rounded
+    entrants = max(0, total_players - total_players_then)
+    return max(0, round(last[1] + int(el.get("transfers_in_event") or 0)
+                        - int(el.get("transfers_out_event") or 0)
+                        + pct / 100.0 * entrants))
 
 
 def _backfill_team_strengths(team: dict) -> dict:
@@ -267,6 +283,23 @@ class LiveFPLCollector(BaseCollector):
         (self.snapshot_dir / f"gw{gw}_setpiece_notes.json").write_text(
             json.dumps(notes), encoding="utf-8"
         )
+
+    def _managers_at_deadlines(self) -> dict[int, int]:
+        """GW -> total managers at that GW's deadline (pre-deadline snapshots)."""
+        out: dict[int, int] = {}
+        if not self.snapshot_dir.exists():
+            return out
+        for boot_path in self.snapshot_dir.glob("gw*_bootstrap.json"):
+            gw_str = boot_path.stem.replace("gw", "").replace("_bootstrap", "")
+            if not gw_str.isdigit():
+                continue
+            try:
+                tp = json.loads(boot_path.read_text(encoding="utf-8")).get("total_players")
+            except (json.JSONDecodeError, OSError):
+                continue
+            if tp:
+                out[int(gw_str)] = int(tp)
+        return out
 
     def _load_snapshot_xp(self) -> dict[tuple[int, int], float]:
         """Build (element_id, gw) -> xP with vaastav's semantics.
@@ -476,6 +509,7 @@ class LiveFPLCollector(BaseCollector):
         rows: list[dict] = []
         # element -> (round, exact `selected` count) of its latest history row
         last_selected: dict[int, tuple[int, int]] = {}
+        managers_at = self._managers_at_deadlines()
         if summary_dir.exists():
             for summary_path in summary_dir.glob("*.json"):
                 try:
@@ -539,7 +573,8 @@ class LiveFPLCollector(BaseCollector):
                                 "team_a_score": "",
                                 "value": el["now_cost"],
                                 "selected": _deadline_selected(
-                                    el, last_selected.get(el["id"]), total_players
+                                    el, last_selected.get(el["id"]), total_players,
+                                    managers_at.get(last_selected.get(el["id"], (None,))[0]),
                                 ),
                                 "transfers_in": el.get("transfers_in_event", 0),
                                 "transfers_out": el.get("transfers_out_event", 0),

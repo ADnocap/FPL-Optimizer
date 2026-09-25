@@ -88,3 +88,21 @@ def test_later_snapshot_in_same_window_wins(tmp_path):
     # a manual re-snapshot saved under another name, taken earlier in the window
     _snapshot(snap, 30, current=2, ep_this="1.0", taken="2026-08-29T10:00:00+00:00")
     assert collector._load_snapshot_xp()[(7, 2)] == 4.5
+
+
+def test_live_serving_refuses_models_trained_on_the_leaky_xp():
+    """A pre-2026-09-25 model needs fpl_xp; serving it NaN gave nonsense plans."""
+    import pytest
+
+    from fpl_optimizer.live.predict import LeakyModelError, check_not_leaky
+
+    class _Stub:
+        _feature_names = ["pts_rolling_3", "fpl_xp"]
+
+    with pytest.raises(LeakyModelError):
+        check_not_leaky(_Stub(), "models/old")
+
+    class _Fixed:
+        _feature_names = ["pts_rolling_3", "fpl_xp_lag"]
+
+    check_not_leaky(_Fixed(), "models/new")  # no error

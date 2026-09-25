@@ -20,6 +20,26 @@ from fpl_optimizer.prediction.minutes import load_predictor
 logger = logging.getLogger(__name__)
 
 
+# Features that must never be served: vaastav's same-GW xP is post-match
+# (FPL recomputes ep_this after the GW). Models trained on it (every model
+# before 2026-09-25) mis-rank live; the pipeline no longer emits it.
+LEAKY_FEATURES = ("fpl_xp",)
+
+
+class LeakyModelError(RuntimeError):
+    """The model needs a feature that is a same-GW leak (see LEAKY_FEATURES)."""
+
+
+def check_not_leaky(predictor, model_dir) -> None:
+    leaky = [f for f in _features_of(predictor) if f in LEAKY_FEATURES]
+    if leaky:
+        raise LeakyModelError(
+            f"{model_dir} was trained on {leaky} (same-GW leak; the pipeline now "
+            "serves fpl_xp_lag). Serving it would give nonsense. Use a model trained "
+            "by the current scripts/train_predictor.py."
+        )
+
+
 def _fill_missing_features(df, feature_names: list[str], where: str):
     """Serve model features the pipeline no longer emits as NaN (logged).
 
@@ -187,6 +207,7 @@ def predict_upcoming_gw(
         )
         return {}
 
+    check_not_leaky(predictor, model_dir)
     warnings = serving_health(gw_df, _features_of(predictor), _load_reference(model_dir))
     for w in warnings:
         logger.warning("Serving health: %s", w)
@@ -217,6 +238,7 @@ def predict_horizon_live(
     dgw_mode: str = "blend",
     health: list[str] | None = None,
     extras: dict[int, dict] | None = None,
+    market: str = "drop",
     predictor=None,
     return_features: bool = False,
 ):
@@ -245,17 +267,22 @@ def predict_horizon_live(
         logger.warning("Live horizon: no feature rows for GW%d", gw)
         empty = pd.DataFrame(columns=["element", "GW", "k", "pred", "p_play"])
         return (empty, df) if return_features else empty
+    check_not_leaky(predictor, model_dir)
+    pre_fill = df[df["GW"] == gw]
     df = _fill_missing_features(df, _features_of(predictor), "Live horizon")
     if extras is not None:
         _collect_extras(df[df["GW"] == gw], id_resolver, season, extras)
-    warnings = serving_health(df[df["GW"] == gw], _features_of(predictor),
+    warnings = serving_health(pre_fill, _features_of(predictor),
                               _load_reference(model_dir))
     for w in warnings:
         logger.warning("Serving health: %s", w)
     if health is not None:
         health.extend(warnings)
     ctx = FixtureContext.from_raw_dir(data_dir / "raw" / season)
-    preds = predict_horizon(predictor, df, ctx, gw, horizon, dgw_mode)
+    # market="drop": props are only known for GW t; keeping them there but not
+    # for t+1.. inflated the first GW ~1 pt for top players relative to the
+    # rest of the horizon (review SP-3). The single-GW path keeps props.
+    preds = predict_horizon(predictor, df, ctx, gw, horizon, dgw_mode, market)
     logger.info("Live horizon: %d (element, GW) predictions for GW%d-%d",
                 len(preds), gw, gw + horizon - 1)
     return (preds, df) if return_features else preds

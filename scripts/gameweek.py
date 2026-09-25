@@ -60,6 +60,14 @@ from fpl_optimizer.optimizer.squad_selection import select_squad
 from fpl_optimizer.optimizer.transfer_optimizer import optimize_transfers
 from fpl_optimizer.utils.constants import CURRENT_SEASON
 
+# Player names go beyond cp1252 (e.g. Petrović): piped Windows stdout would
+# raise UnicodeEncodeError mid-report (review LP-1).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("gameweek")
 
@@ -401,6 +409,9 @@ def main() -> None:
 
     elements = {el["id"]: el for el in bootstrap["elements"]}
     teams = {t["id"]: t["short_name"] for t in bootstrap["teams"]}
+    # Printed/logged xPts = what the optimizer used (availability-scaled for
+    # flagged players), not the raw model output (review LP-6).
+    shown = dict(predictions)
 
     # 3. Optimize
     if args.fresh_squad or args.team_id is None:
@@ -417,8 +428,10 @@ def main() -> None:
             min_chance=args.min_chance,
             availability_scaling=not using_ep,
         )
+        shown.update({c.element_id: c.predicted_points for c in candidates})
         result = select_squad(candidates, budget=args.budget)
         header = f"Fresh squad (cost {result.total_cost / 10:.1f}m)"
+        points_label = "objective, XI + captain"
     else:
         gs = entry_state.game_state
         print(f"Team: {entry_state.team_name}  |  "
@@ -452,6 +465,8 @@ def main() -> None:
             if args.ft_value is not None:
                 cfg.ft_value = args.ft_value
             hres = optimize_horizon(gs, h_cands, horizon_gws, chip_plan, cfg)
+            shown.update({c.element_id: c.xpts[0] for c in h_cands})
+            points_label = "planned points this GW, XI + captain (+ bench if BB)"
             import dataclasses
 
             # report THIS GW's expected points (the objective spans the horizon)
@@ -485,13 +500,16 @@ def main() -> None:
                 gs, candidates, chip=args.chip, max_transfers=args.max_transfers,
                 hit_margin=SINGLE_GW_HIT_MARGIN if args.hit_margin is None else args.hit_margin,
             )
+            shown.update({c.element_id: c.predicted_points for c in candidates})
+            points_label = ("objective this GW, XI + captain + bench/vice EV, "
+                            "before hits")
         header = "Recommended plan"
 
         if result.transfers_out:
             print("Transfers:")
             for out_id, in_id in zip(result.transfers_out, result.transfers_in):
-                print(f"  OUT: {_fmt_player(out_id, elements, teams, predictions)}")
-                print(f"  IN:  {_fmt_player(in_id, elements, teams, predictions)}")
+                print(f"  OUT: {_fmt_player(out_id, elements, teams, shown)}")
+                print(f"  IN:  {_fmt_player(in_id, elements, teams, shown)}")
             if result.hit_cost:
                 print(f"  Hit cost: -{result.hit_cost} pts")
         else:
@@ -504,7 +522,7 @@ def main() -> None:
         result = _override_captaincy(result, args.captain, args.vice, elements)
 
     # 4. Report
-    print(f"=== {header} — expected XI points: {result.objective_value:.1f} ===\n")
+    print(f"=== {header} — {points_label}: {result.objective_value:.1f} ===\n")
     print("Starting XI:")
     for eid in result.lineup_element_ids:
         tag = ""
@@ -512,20 +530,20 @@ def main() -> None:
             tag = "  (C)"
         elif eid == result.vice_captain_id:
             tag = "  (V)"
-        print(f"  {_fmt_player(eid, elements, teams, predictions)}{tag}")
+        print(f"  {_fmt_player(eid, elements, teams, shown)}{tag}")
     print("\nBench (sub priority order):")
     for eid in result.bench_element_ids:
-        print(f"  {_fmt_player(eid, elements, teams, predictions)}")
+        print(f"  {_fmt_player(eid, elements, teams, shown)}")
     # Captaincy view: the model's pick next to FPL's EP and the bookmakers'
     # anytime-scorer probability. In GW1-5 2026-27 the human/market captain
     # beat the (then leaky) model's; the call stays with the human.
     ep_next = {el["id"]: float(el.get("ep_next") or 0.0) for el in bootstrap["elements"]}
-    xi_ranked = sorted(result.lineup_element_ids, key=lambda e: -predictions.get(e, 0.0))
+    xi_ranked = sorted(result.lineup_element_ids, key=lambda e: -shown.get(e, 0.0))
     print("\nCaptaincy view (XI, by model xPts):   model   FPL-EP   P(goal, books)")
     for eid in xi_ranked[:6]:
         p_goal = extras.get(eid, {}).get("p_goal")
         tag = " (C)" if eid == result.captain_id else (" (V)" if eid == result.vice_captain_id else "")
-        print(f"  {elements[eid]['web_name']:<22}{tag:<5}{predictions.get(eid, 0.0):>6.2f}"
+        print(f"  {elements[eid]['web_name']:<22}{tag:<5}{shown.get(eid, 0.0):>6.2f}"
               f"   {ep_next.get(eid, 0.0):>6.1f}   "
               + (f"{p_goal:>6.0%}" if p_goal is not None else "     -"))
 
@@ -549,6 +567,8 @@ def main() -> None:
             "squad": [p.element_id for p in entry_state.game_state.squad.players],
         },
         "predictions": {int(k): round(float(v), 3) for k, v in predictions.items()},
+        "predictions_used": {int(k): round(float(v), 3) for k, v in shown.items()
+                             if abs(shown[k] - predictions.get(k, 0.0)) > 1e-9},
         "transfers_out": list(getattr(result, "transfers_out", []) or []),
         "transfers_in": list(getattr(result, "transfers_in", []) or []),
         "hit_cost": getattr(result, "hit_cost", 0),
@@ -559,7 +579,8 @@ def main() -> None:
         "captain_override": args.captain,
         "vice_override": args.vice,
         "chip": chip_used,
-        "expected_xi_points": result.objective_value,
+        "expected_points": result.objective_value,
+        "expected_points_label": points_label,
     })
     print(f"\nDecision log: {log_path}")
 
@@ -590,7 +611,7 @@ def main() -> None:
             if c.get("status_for_entry") == "active" or c.get("is_pending")
         ]
         pending = [c for c in pending if c]
-        if pending and args.chip not in pending:
+        if pending and chip_used not in pending:
             print(f"ERROR: chip '{pending[0]}' is already active for GW{gw} on "
                   f"the site. Re-run with --chip {pending[0]} (plans for it and "
                   "keeps it) or cancel it on the site. Nothing submitted.")
