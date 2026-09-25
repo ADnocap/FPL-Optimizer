@@ -73,13 +73,17 @@ class FakeAuth:
 
 
 @pytest.fixture
-def run_gw(monkeypatch, bootstrap, capsys):
+def run_gw(monkeypatch, bootstrap, capsys, tmp_path):
     """run_gw(argv, entry_state=None, target_gw=6, server_kw=None, transfers=...)"""
 
     def _run(argv, entry_state=None, target_gw=6, server_kw=None,
              transfers=((221, None),)):
         gwmod = _load_gameweek()
         elements = {el["id"]: el for el in bootstrap["elements"]}
+        # never write decision logs into the real data/ directory
+        real_log = gwmod._write_decision_log
+        monkeypatch.setattr(gwmod, "_write_decision_log",
+                            lambda _dd, season, gw, rec: real_log(tmp_path, season, gw, rec))
 
         class FakeCollector:
             def __init__(self, data_dir=None, season=None):
