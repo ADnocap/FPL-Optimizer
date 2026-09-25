@@ -398,22 +398,27 @@ class TestLoadPredictor:
 
 class TestRecipe:
     def test_exclusion_list_removes_columns(self) -> None:
-        from fpl_optimizer.prediction.feature_sets import UNSERVABLE_FEATURES
+        from fpl_optimizer.prediction.feature_sets import (
+            EXCLUDED_FEATURES, H2H_ODDS, UNSERVABLE_FEATURES,
+        )
 
         tp = _load_train_predictor()
         recipe = tp.resolve_recipe(None)
-        assert recipe["exclude_features"] == UNSERVABLE_FEATURES
+        assert recipe["exclude_features"] == EXCLUDED_FEATURES
+        assert set(EXCLUDED_FEATURES) == set(UNSERVABLE_FEATURES) | set(H2H_ODDS)
         assert "xg_rolling_5" in UNSERVABLE_FEATURES and "goals_vs_xg_5" in UNSERVABLE_FEATURES
-        assert not any(c.startswith("odds_team") for c in UNSERVABLE_FEATURES)  # served live
+        # h2h odds: neutral but a fragile live dependency -> excluded by default
+        assert all(c.startswith("odds_team") for c in H2H_ODDS)
         df = _synthetic_training_frame(seasons=("2023-24",))
-        for c in ["xg_rolling_5", "prev_sot_per90", "dribbles_rolling_5"]:
+        for c in ["xg_rolling_5", "prev_sot_per90", "dribbles_rolling_5", "odds_team_win_prob"]:
             df[c] = 1.0
         out, dropped = tp.apply_exclusions(df, recipe)
-        assert set(dropped) == {"xg_rolling_5", "prev_sot_per90", "dribbles_rolling_5"}
+        assert set(dropped) == {"xg_rolling_5", "prev_sot_per90", "dribbles_rolling_5",
+                                "odds_team_win_prob"}
         assert not set(dropped) & set(out.columns)
         p = PointPredictor(params=_TINY)
         p.train(out)
-        assert not set(UNSERVABLE_FEATURES) & set(p.feature_names)
+        assert not set(EXCLUDED_FEATURES) & set(p.feature_names)
 
     def test_recipe_override_merges_params(self) -> None:
         tp = _load_train_predictor()

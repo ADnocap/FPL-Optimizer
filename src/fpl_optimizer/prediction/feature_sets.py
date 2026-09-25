@@ -35,8 +35,20 @@ LEGACY_DETAIL = [
     "big_chances_created_rolling_5", "dribbles_rolling_5",
 ]
 
-# Features that cannot be served at a live 2026-27 deadline -> excluded from
-# training by default (scripts/train_predictor.py RECIPE["exclude_features"]).
-# NOT here: the h2h odds features (odds_team_*) — served live from
-# football-data.co.uk (data/odds/2026-27.json) — and the player props.
+# h2h match-odds features (features/odds.py). Servable (football-data.co.uk,
+# Odds API fallback) but neutral for the model (+0.0002 per-GW Spearman,
+# combiner 2026-09-25) and they are populated in EVERY training season, so a
+# missed live refresh (football-data lists a weekend ~2 days ahead; the office
+# network blocks the Odds API) would put the model out of distribution.
+# Excluded: same accuracy, one fewer live dependency. (Player props stay: they
+# are NaN in all pre-2025-26 training rows, so a missing props snapshot is
+# in-distribution.)
+H2H_ODDS = ["odds_team_win_prob", "odds_team_draw_prob", "odds_team_loss_prob",
+            "odds_team_strength"]
+
+# Features that cannot be served at a live 2026-27 deadline.
 UNSERVABLE_FEATURES = UNDERSTAT_ROLLING + PRIOR_FBREF_DEAD + LEGACY_DETAIL
+
+# Excluded from training by default (scripts/train_predictor.py
+# RECIPE["exclude_features"]).
+EXCLUDED_FEATURES = UNSERVABLE_FEATURES + H2H_ODDS

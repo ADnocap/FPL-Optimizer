@@ -90,6 +90,22 @@ _STRENGTH_SCALE = {
 }
 
 
+def _deadline_selected(el: dict, last: tuple[int, int] | None, total_players: int) -> int:
+    """Ownership count at the upcoming deadline, as training rows record it.
+
+    History rows carry the exact ``selected`` count; bootstrap only exposes
+    ``selected_by_percent`` rounded to 0.1% (~11k managers), which quantises
+    low-owned players (combiner experiment 2026-09-25: -0.024 per-GW Spearman
+    in simulation, -0.005 live). Reconstruct it instead: last exact count +
+    this window's transfers in - out. Players without history fall back to the
+    rounded percentage.
+    """
+    if last is not None:
+        return max(0, last[1] + int(el.get("transfers_in_event") or 0)
+                   - int(el.get("transfers_out_event") or 0))
+    return int(float(el.get("selected_by_percent") or 0) / 100.0 * total_players)
+
+
 def _backfill_team_strengths(team: dict) -> dict:
     """Return a copy of a bootstrap team dict with the legacy strength fields
     filled in when the API no longer provides them (2026-27 onwards)."""
@@ -446,6 +462,8 @@ class LiveFPLCollector(BaseCollector):
 
         summary_dir = self.data_dir / "fpl_api" / "element_summaries" / self.season
         rows: list[dict] = []
+        # element -> (round, exact `selected` count) of its latest history row
+        last_selected: dict[int, tuple[int, int]] = {}
         if summary_dir.exists():
             for summary_path in summary_dir.glob("*.json"):
                 try:
@@ -466,6 +484,10 @@ class LiveFPLCollector(BaseCollector):
                     row["element"] = eid
                     row["GW"] = h["round"]
                     rows.append(row)
+                    if h.get("selected") is not None and (
+                        eid not in last_selected or h["round"] >= last_selected[eid][0]
+                    ):
+                        last_selected[eid] = (h["round"], int(h["selected"]))
 
         # --- synthetic rows for the upcoming GW (pre-deadline prediction) ---
         if include_upcoming:
@@ -504,10 +526,8 @@ class LiveFPLCollector(BaseCollector):
                                 "team_h_score": "",
                                 "team_a_score": "",
                                 "value": el["now_cost"],
-                                "selected": int(
-                                    float(el.get("selected_by_percent") or 0)
-                                    / 100.0
-                                    * total_players
+                                "selected": _deadline_selected(
+                                    el, last_selected.get(el["id"]), total_players
                                 ),
                                 "transfers_in": el.get("transfers_in_event", 0),
                                 "transfers_out": el.get("transfers_out_event", 0),

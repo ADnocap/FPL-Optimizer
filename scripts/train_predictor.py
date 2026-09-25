@@ -14,8 +14,9 @@ is switchable through RECIPE (override with ``--recipe JSON|path.json``;
 - ``calibrate``: monotone quadratic raw->points map fitted on the
   early-stopping val split, applied to the FINAL (blended) output. Huber
   predicts near the conditional median; the MILP needs the points scale.
-- ``exclude_features``: features never served at a live deadline
-  (fpl_optimizer.prediction.feature_sets.UNSERVABLE_FEATURES) — train what
+- ``exclude_features``: features never served at a live deadline, plus the
+  neutral-but-fragile h2h odds (fpl_optimizer.prediction.feature_sets.
+  EXCLUDED_FEATURES) — train what
   you serve.
 - ``include_current_season``: PROD also trains on the current season's
   completed GWs (never used as the val season: early stopping stays on the
@@ -63,7 +64,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from fpl_optimizer.prediction.feature_sets import UNSERVABLE_FEATURES  # noqa: E402
+from fpl_optimizer.prediction.feature_sets import EXCLUDED_FEATURES  # noqa: E402
 from fpl_optimizer.prediction.minutes import MM_ROUNDS  # noqa: E402
 from fpl_optimizer.utils.constants import CURRENT_SEASON  # noqa: E402
 
@@ -106,7 +107,7 @@ RECIPE = {
     "params": PARAMS,                  # LightGBM params of the point model(s)
     "early_stopping_rounds": 50,
     "calibrate": True,                 # quadratic raw->points map on the val split
-    "exclude_features": UNSERVABLE_FEATURES,
+    "exclude_features": EXCLUDED_FEATURES,
     "include_current_season": True,    # PROD trains on the current season's completed GWs
     "refit": False,                    # retrain on train+val at the best iteration
     "w_fact": 0.5,                     # minutes_blend: weight of the factorized part

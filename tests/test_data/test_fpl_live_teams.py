@@ -48,3 +48,41 @@ def test_transferred_player_keeps_old_club_on_old_rows(tmp_path):
     assert by_gw[2] == "Team2"
     # exactly one fixture per (team, GW): no phantom double gameweek
     assert merged.groupby(["team", "GW"])["fixture"].nunique().max() == 1
+
+
+def test_upcoming_row_ownership_is_reconstructed_not_rounded(tmp_path):
+    """selected at the deadline = last exact count + transfers in - out."""
+    season = "2026-27"
+    teams = [{"id": i, "name": f"Team{i}", "short_name": f"T{i}",
+              "strength_overall_home": 3, "strength_overall_away": 3} for i in (1, 2)]
+    elements = [
+        {"id": 10, "code": 1010, "first_name": "A", "second_name": "Owned",
+         "web_name": "Owned", "element_type": 3, "team": 1, "now_cost": 50,
+         "selected_by_percent": "0.1", "status": "a",
+         "transfers_in_event": 700, "transfers_out_event": 200},
+        {"id": 11, "code": 1011, "first_name": "B", "second_name": "New",
+         "web_name": "New", "element_type": 3, "team": 2, "now_cost": 45,
+         "selected_by_percent": "0.2", "status": "a",
+         "transfers_in_event": 5, "transfers_out_event": 0},
+    ]
+    fixtures = [
+        {"id": 1, "event": 1, "team_h": 1, "team_a": 2},
+        {"id": 2, "event": 2, "team_h": 2, "team_a": 1},
+    ]
+    summaries = tmp_path / "fpl_api" / "element_summaries" / season
+    summaries.mkdir(parents=True)
+    hist = _history(10, 1, 1, True, 2)
+    hist["selected"] = 12_345
+    (summaries / "10.json").write_text(json.dumps({"history": [hist]}), encoding="utf-8")
+    events = [{"id": 1, "is_current": True, "is_next": False, "finished": True,
+               "deadline_time": "2026-08-21T17:30:00Z"},
+              {"id": 2, "is_current": False, "is_next": True, "finished": False,
+               "deadline_time": "2099-08-28T17:30:00Z"}]
+    bootstrap = {"elements": elements, "teams": teams, "events": events,
+                 "total_players": 11_000_000}
+    raw = LiveFPLCollector(data_dir=tmp_path, season=season).build_season_files(
+        bootstrap, fixtures, include_upcoming=True)
+    merged = pd.read_csv(raw / "gws" / "merged_gw.csv")
+    up = merged[merged["GW"] == 2].set_index("element")["selected"]
+    assert up[10] == 12_345 + 700 - 200          # exact, not 0.1% of 11M = 11,000
+    assert up[11] == int(0.2 / 100 * 11_000_000)  # no history: rounded percentage

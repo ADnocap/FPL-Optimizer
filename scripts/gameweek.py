@@ -156,25 +156,6 @@ def _sync_with_my_team(gs, my_team: dict) -> list[str]:
     return notes
 
 
-def _refresh_side_sources(data_dir: Path, season: str, gw: int) -> None:
-    """h2h odds for the live season (odds_team_* features).
-
-    The model was trained with odds populated; serving them empty (as in
-    GW1-5 2026-27) is a silent train/serve gap. Failure is non-fatal but loud —
-    the data-health block will flag it. (Understat is NOT refreshed: its
-    features are excluded from the model — never servable live, and worthless
-    once the same-day leak was fixed. UnderstatCollector.refresh_live_season
-    remains available for research.)
-    """
-    try:
-        from collect_football_data_odds import build_season_odds
-
-        build_season_odds(season, data_dir, include_upcoming=True, gw=gw)
-    except Exception as exc:
-        print(f"WARNING: h2h odds refresh failed ({exc}) — odds features may be "
-              "empty for the upcoming GW.")
-
-
 def _write_decision_log(data_dir: Path, season: str, gw: int, record: dict) -> Path:
     """Persist what the model saw and recommended (post-mortems need it)."""
     import json
@@ -355,7 +336,6 @@ def main() -> None:
         collector.build_season_files(
             bootstrap=bootstrap, fixtures=fixtures, include_upcoming=True
         )
-        _refresh_side_sources(args.data_dir, args.season, gw)
         # Live player-prop odds (feeds props_* features; optional — needs
         # ODDS_API_KEY with prop-market access; ~40 credits per GW)
         try:
