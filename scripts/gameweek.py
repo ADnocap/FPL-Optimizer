@@ -157,23 +157,15 @@ def _sync_with_my_team(gs, my_team: dict) -> list[str]:
 
 
 def _refresh_side_sources(data_dir: Path, season: str) -> None:
-    """Understat per-match data and h2h odds for the live season.
+    """h2h odds for the live season (odds_team_* features).
 
-    The model was trained with both populated; serving them empty (as in
-    GW1-5 2026-27) cost most of the top-of-ranking accuracy. Failures are
-    non-fatal but loud — the data-health block will flag the gap.
+    The model was trained with odds populated; serving them empty (as in
+    GW1-5 2026-27) is a silent train/serve gap. Failure is non-fatal but loud —
+    the data-health block will flag it. (Understat is NOT refreshed: its
+    features are excluded from the model — never servable live, and worthless
+    once the same-day leak was fixed. UnderstatCollector.refresh_live_season
+    remains available for research.)
     """
-    try:
-        from fpl_optimizer.data.collectors.understat import UnderstatCollector
-        from fpl_optimizer.data.collectors.understat_ids import (
-            build_understat_id_supplement,
-        )
-
-        UnderstatCollector(data_dir=data_dir).refresh_live_season(season)
-        build_understat_id_supplement(data_dir, season)
-    except Exception as exc:
-        print(f"WARNING: understat refresh failed ({exc}) — understat features "
-              "will be stale or empty this GW.")
     try:
         from collect_football_data_odds import build_season_odds
 
