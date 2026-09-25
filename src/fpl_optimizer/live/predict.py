@@ -1,6 +1,7 @@
 """Pre-deadline predictions for the upcoming GW of the live season.
 
-Runs the trained LightGBM PointPredictor over the live-built season files
+Runs the trained predictor (any kind — ``minutes.load_predictor``: a
+PointPredictor or the MinutesBlendPredictor) over the live-built season files
 (which include synthetic rows for the upcoming GW — see
 ``fpl_optimizer.data.collectors.fpl_live``).  DGW players get their per-row
 prediction summed; BGW players simply have no row and fall back to 0.
@@ -14,9 +15,27 @@ from pathlib import Path
 
 from fpl_optimizer.prediction.feature_pipeline import FeaturePipeline
 from fpl_optimizer.prediction.id_resolver import IDResolver
-from fpl_optimizer.prediction.model import PointPredictor
+from fpl_optimizer.prediction.minutes import load_predictor
 
 logger = logging.getLogger(__name__)
+
+
+def _fill_missing_features(df, feature_names: list[str], where: str):
+    """Serve model features the pipeline no longer emits as NaN (logged).
+
+    Keeps an older model (e.g. a ``.prev`` rollback trained on a since-renamed
+    feature) servable instead of crashing; serving_health reports the gap.
+    """
+    missing = [c for c in feature_names if c not in df.columns]
+    if missing:
+        logger.warning(
+            "%s: model features missing from the pipeline output, served as NaN: %s",
+            where, missing,
+        )
+        df = df.copy()
+        for c in missing:
+            df[c] = float("nan")
+    return df
 
 # Written next to the model by scripts/train_predictor.py: per-feature
 # non-null rate and std on recent training rows of players who are playing.
@@ -113,7 +132,7 @@ def predict_upcoming_gw(
     are appended to it. If *extras* is a dict, it receives per-player display
     context from the same rows (see :func:`_collect_extras`).
     """
-    predictor = PointPredictor.load(model_dir)
+    predictor = load_predictor(model_dir)
     id_resolver = IDResolver(data_dir)
 
     pipeline = FeaturePipeline(data_dir, id_resolver, [season])
@@ -131,7 +150,7 @@ def predict_upcoming_gw(
         )
         return {}
 
-    warnings = serving_health(gw_df, predictor._feature_names, _load_reference(model_dir))
+    warnings = serving_health(gw_df, predictor.feature_names, _load_reference(model_dir))
     for w in warnings:
         logger.warning("Serving health: %s", w)
     if health is not None:
@@ -140,6 +159,7 @@ def predict_upcoming_gw(
     if extras is not None:
         _collect_extras(gw_df, id_resolver, season, extras)
 
+    gw_df = _fill_missing_features(gw_df, predictor.feature_names, "Live predict")
     preds = predictor.predict(gw_df)
     out: dict[int, float] = defaultdict(float)
     for pred, (_, row) in zip(preds, gw_df.iterrows()):
@@ -172,23 +192,16 @@ def predict_horizon_live(
 
     from fpl_optimizer.prediction.horizon import FixtureContext, predict_horizon
 
-    predictor = PointPredictor.load(model_dir)
+    predictor = load_predictor(model_dir)
     id_resolver = IDResolver(data_dir)
     df = FeaturePipeline(data_dir, id_resolver, [season]).build()
     if df.empty or not (df["GW"] == gw).any():
         logger.warning("Live horizon: no feature rows for GW%d", gw)
         return pd.DataFrame(columns=["element", "GW", "k", "pred", "p_play"])
-    missing = [c for c in predictor._feature_names if c not in df.columns]
-    if missing:
-        logger.warning(
-            "Live horizon: model features missing from the pipeline output, "
-            "served as NaN: %s", missing,
-        )
-        for c in missing:
-            df[c] = float("nan")
+    df = _fill_missing_features(df, predictor.feature_names, "Live horizon")
     if extras is not None:
         _collect_extras(df[df["GW"] == gw], id_resolver, season, extras)
-    warnings = serving_health(df[df["GW"] == gw], predictor._feature_names,
+    warnings = serving_health(df[df["GW"] == gw], predictor.feature_names,
                               _load_reference(model_dir))
     for w in warnings:
         logger.warning("Serving health: %s", w)

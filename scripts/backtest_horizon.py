@@ -106,6 +106,7 @@ def fix_xp_leak(df: pd.DataFrame, data_dir: Path) -> pd.DataFrame:
 
 def cmd_predict(args: argparse.Namespace) -> None:
     from fpl_optimizer.prediction.horizon import FixtureContext, predict_horizon
+    from fpl_optimizer.prediction.minutes import load_predictor
     from fpl_optimizer.prediction.model import _NON_FEATURE_COLS, PointPredictor
 
     target = args.season
@@ -128,9 +129,28 @@ def cmd_predict(args: argparse.Namespace) -> None:
     print(f"features: {len(df)} rows, {len(feats)} feature cols ({time.time() - t0:.0f}s)",
           flush=True)
 
-    if args.model:  # reuse an evaluation model saved by an earlier run
-        model = PointPredictor.load(args.model)
-        print(f"loaded model {args.model}", flush=True)
+    if args.model:  # reuse an evaluation model saved by an earlier run (any kind)
+        model = load_predictor(args.model)
+        print(f"loaded {model.kind} model {args.model}", flush=True)
+    elif args.recipe:  # the production recipe (scripts/train_predictor.py)
+        import train_predictor as tp
+        from fpl_optimizer.prediction.minutes import OOF_KEY, expanding_minutes_oof
+
+        recipe = tp.resolve_recipe(None if args.recipe == "default" else args.recipe)
+        df, _ = tp.apply_exclusions(df, recipe)
+        tr_df, va_df = tp._split_val(df[df["season"].isin(train_seasons)], train_seasons)
+        oof = None
+        if recipe["kind"] == "minutes_blend":
+            hist = df[df["season"].isin(train_seasons)]
+            oof = pd.concat([hist[OOF_KEY], expanding_minutes_oof(hist, recipe["mm_rounds"])],
+                            axis=1)
+        model = tp.fit_model(recipe, tr_df, va_df, oof)
+        del tr_df, va_df, oof
+        gc.collect()
+        print(f"trained {recipe['kind']} recipe on {train_seasons[0]}..{val_season} "
+              f"({time.time() - t0:.0f}s)", flush=True)
+        if args.save_model:
+            model.save(args.save_model)
     else:
         tr = df["season"].isin(train_seasons)
         last = int(df.loc[df["season"] == val_season, "GW"].max())
@@ -426,12 +446,15 @@ def main() -> None:
     p.add_argument("--market", default="keep", choices=["keep", "drop"],
                    help="drop = no odds/props at any horizon GW (consistent footing)")
     p.add_argument("--model", type=Path, default=None,
-                   help="load this PointPredictor dir instead of training")
+                   help="load this model dir (either kind) instead of training")
+    p.add_argument("--recipe", default=None,
+                   help="train with scripts/train_predictor.py's RECIPE: 'default' or a "
+                        "JSON override (else the legacy L2 PARAMS_FAST/--full)")
     p.add_argument("--max-gw", type=int, default=None)
     p.add_argument("--full", action="store_true", help="full (slow) LightGBM params")
     p.add_argument("--keep-leaky-xp", action="store_true")
     p.add_argument("--save-model", type=Path, default=None,
-                   help="also save the evaluation model (PointPredictor dir)")
+                   help="also save the evaluation model (loadable with load_predictor)")
     p.add_argument("--data-dir", type=Path, default=REPO_ROOT / "data")
     r = sub.add_parser("replay")
     r.add_argument("--season", required=True)

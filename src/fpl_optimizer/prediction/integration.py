@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 
 from fpl_optimizer.prediction.id_resolver import IDResolver
-from fpl_optimizer.prediction.model import PointPredictor
+from fpl_optimizer.prediction.minutes import load_predictor
 from fpl_optimizer.prediction.feature_pipeline import FeaturePipeline
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ class PredictionIntegrator:
         Parameters
         ----------
         model_dir : Path
-            Directory containing saved PointPredictor model files.
+            Directory of a saved predictor (either kind; see minutes.load_predictor).
         data_dir : Path
             Root data directory.
         season : str
@@ -58,7 +58,7 @@ class PredictionIntegrator:
         PredictionIntegrator
             Ready for lookups by the backtest.
         """
-        predictor = PointPredictor.load(model_dir)
+        predictor = load_predictor(model_dir)
         id_resolver = IDResolver(data_dir)
 
         pipeline = FeaturePipeline(data_dir, id_resolver, [season])
