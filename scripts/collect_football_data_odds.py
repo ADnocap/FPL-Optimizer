@@ -198,6 +198,19 @@ def match_odds_api_events(events: list[dict], season: str, data_dir: Path, gw: i
     return out
 
 
+def _pair_ids(record: dict, data_dir: Path, season: str) -> tuple:
+    """(home_id, away_id) of an odds record, whichever naming scheme it uses."""
+    from fpl_optimizer.data.collectors.odds import odds_team_to_fpl_name
+
+    teams = pd.read_csv(data_dir / "raw" / season / "teams.csv")
+    name_to_id = dict(zip(teams["name"], teams["id"]))
+
+    def _id(name):
+        return name_to_id.get(odds_team_to_fpl_name(name), name_to_id.get(name))
+
+    return _id(record["home_team"]), _id(record["away_team"])
+
+
 def build_season_odds(
     season: str, data_dir: Path, include_upcoming: bool = False,
     gw: int | None = None,
@@ -225,10 +238,10 @@ def build_season_odds(
         seen = {m["event_id"] for ms in by_gw.values() for m in ms}
         up_by_gw, up_unmapped = _rows_to_gw_matches(up, season, date_to_gw)
         unmapped += up_unmapped
-        for gw, matches in up_by_gw.items():
+        for gw_key, matches in up_by_gw.items():  # never shadow the `gw` argument
             for m in matches:
                 if m["event_id"] not in seen:
-                    by_gw.setdefault(gw, []).append(m)
+                    by_gw.setdefault(gw_key, []).append(m)
                     n_upcoming += 1
 
     n_api = 0
@@ -242,9 +255,11 @@ def build_season_odds(
             except Exception as exc:  # no key / network (e.g. Zscaler) / quota
                 print(f"Odds API fallback for GW{gw} failed: {exc}")
                 api = []
-            got = {(m["home_team"], m["away_team"]) for m in by_gw.get(str(gw), [])}
+            # dedupe on team ids: football-data ("Man United") and the Odds API
+            # records (teams.csv "Man Utd") name clubs differently
+            got = {_pair_ids(m, data_dir, season) for m in by_gw.get(str(gw), [])}
             for m in api:
-                if (m["home_team"], m["away_team"]) not in got:
+                if _pair_ids(m, data_dir, season) not in got:
                     by_gw.setdefault(str(gw), []).append(m)
                     n_api += 1
             print(f"GW{gw} odds coverage: {have + n_api}/{needed} matches"

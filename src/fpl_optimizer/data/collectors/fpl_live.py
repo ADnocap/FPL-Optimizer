@@ -352,13 +352,25 @@ class LiveFPLCollector(BaseCollector):
                 "--skip-refresh if they are recent enough."
             )
         old = base / f"{self.season}.old"
-        if old.exists():
-            shutil.rmtree(old)
-        if summary_dir.exists():
-            summary_dir.rename(old)
-        staging.rename(summary_dir)
-        if old.exists():
-            shutil.rmtree(old)
+        try:
+            if old.exists():
+                shutil.rmtree(old)
+            if summary_dir.exists():
+                summary_dir.rename(old)
+            staging.rename(summary_dir)
+            if old.exists():
+                shutil.rmtree(old, ignore_errors=True)
+        except OSError:
+            # Directory renames fail on Windows while anything (OneDrive sync,
+            # an editor, antivirus) holds a handle: fall back to copying the
+            # complete staged set over the old files, then drop the staging dir.
+            if old.exists() and not summary_dir.exists():
+                old.rename(summary_dir)
+            summary_dir.mkdir(parents=True, exist_ok=True)
+            for f in staging.glob("*.json"):
+                shutil.copy2(f, summary_dir / f.name)
+            shutil.rmtree(staging, ignore_errors=True)
+            logger.warning("Element summaries: directory swap failed; copied files instead")
         (summary_dir / "_refreshed_utc.txt").write_text(
             datetime.now(timezone.utc).isoformat(), encoding="utf-8"
         )

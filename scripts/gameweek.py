@@ -326,8 +326,15 @@ def main() -> None:
                     for f in fixtures
                     if f.get("event") == last_done["id"] and f.get("kickoff_time")
                 ]
-                results_in = (max(kickoffs) if kickoffs else datetime.fromisoformat(
-                    last_done["deadline_time"].replace("Z", "+00:00"))) + timedelta(hours=3)
+                from zoneinfo import ZoneInfo
+
+                last_ko = max(kickoffs) if kickoffs else datetime.fromisoformat(
+                    last_done["deadline_time"].replace("Z", "+00:00"))
+                # 2026-27 lockdown rule: scores are final at 09:00 UK the day
+                # after the GW's last match
+                uk = last_ko.astimezone(ZoneInfo("Europe/London"))
+                results_in = (uk + timedelta(days=1)).replace(
+                    hour=9, minute=0, second=0, microsecond=0)
                 if refreshed is None or refreshed <= results_in:
                     print(f"ERROR: --skip-refresh but the element summaries predate "
                           f"GW{last_done['id']} (last full refresh: {refreshed}). "
