@@ -55,6 +55,13 @@ description: Run the weekly FPL pre-deadline routine — refresh live data, pred
    authenticated my-team state and refuses if transfers were already made on the
    site or a different chip is active there. Auth is `FPL_REFRESH_TOKEN` in `.env` (single-use rotating
    token — see the live-season memory for re-extraction; close the site tab after).
+   **Add `--skip-refresh` to the apply run when the recommendation run refreshed the
+   summaries in the same session**: without it the apply re-downloads all ~670 element
+   summaries (~11 min at 1 req/s), which nearly missed the GW6 deadline on 2026-10-10.
+   The plan is unchanged (same snapshot, same model); the driver still refuses stale
+   summaries. **Expect the token to be dead** whenever he has opened the site since the
+   last apply (the browser's copy rotates it): run the auth check early, not at T-20 min,
+   and have him re-extract before the recommendation is presented.
    When recommending players by name, ALWAYS disambiguate with club + position
    (two Palmers exist: Cole Palmer CHE MID vs Alex Palmer IPS GK).
 
