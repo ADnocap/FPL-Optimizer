@@ -6,11 +6,11 @@ The repo runs live this season. This is the operational handbook.
 
 ```bash
 # The weekly run: 3-GW planner, only this GW's moves are executed
-python scripts/gameweek.py --team-id <YOUR_ENTRY_ID> --horizon 3 --chip-plan "tc:7"
+python scripts/gameweek.py --team-id <YOUR_ENTRY_ID> --horizon 3 --chip-plan "wc:9"
 # Cross-check: single-GW optimizer
 python scripts/gameweek.py --team-id <YOUR_ENTRY_ID> --skip-refresh
 # Apply (plans on the authenticated my-team state; commits in one go):
-python scripts/gameweek.py --team-id <YOUR_ENTRY_ID> --horizon 3 --chip-plan "tc:7" --apply --yes
+python scripts/gameweek.py --team-id <YOUR_ENTRY_ID> --horizon 3 --chip-plan "wc:9" --apply --yes
 ```
 
 `--chip-plan` lists only chips already decided that fall inside the next three
@@ -106,7 +106,7 @@ GW through the rules engine, `scripts/backtest_horizon.py`), net points:
 - Prices: locked until GW1 deadline, then ±£0.1m/day at 00:00 UK; NEW official
   Price Change Predictor page (updates every 15 min) — useful before buying.
 
-## Chip plan (approved 2026-09-18, after GW5)
+## Chip plan (approved 2026-09-18, after GW5; re-cut 2026-10-23 after the missed GW7: WC1 → GW9 under the early-pull rule, TC1 and BB1 rows carry proposals awaiting his word)
 
 Facts behind it: **no blank or double GW anywhere in GW1-19** (0 unscheduled
 fixtures on 2026-09-18), so first-half chips are single-GW plays worth roughly
@@ -116,9 +116,9 @@ Decision points are in Google Calendar (green events, like the deadlines).
 
 | Chip | Plan | Decision point |
 |------|------|----------------|
-| Triple Captain 1 | **GW7, Haaland home v Ipswich (Sat 17 Oct)** — promoted side, close enough to carry little injury/expiry risk. Fallback GW16 v Hull (H) | Fri 16 Oct, GW7 prep |
-| Wildcard 1 | **GW11 (Sat 21 Nov)**, after the November break and the ~GW8 retrain, built for the festive run (GW12-19 = 8 GWs in 5 weeks). Pull forward to any GW6-10 if ≥3 starters are flagged/out; until then 1 FT/week handles the drift | Fri 23 Oct (retrain + early-pull check), Fri 20 Nov (build) |
-| Bench Boost 1 | **GW12 or GW13** — first GW after the WC where the bench has 4 starters; the WC squad is built for it | the WC week |
+| Triple Captain 1 | **GW7 MISSED** (the GW7 deadline passed with no transfers and no chip, noticed 23 Oct). **Proposal of 23 Oct, awaiting his word: GW11, Haaland home v Fulham (Sat 21 Nov)**; chip_eval 23 Oct: raw +7.5 (cal +4.1), level within noise with GW13 v Leeds (+7.6) and GW19 (+7.6). Fallback GW16 v Hull (H) | GW10 prep (Fri 6 Nov) |
+| Wildcard 1 | **GW9 (Sat 31 Oct, 11:00 London)** — pulled forward from GW11 on 23 Oct under this row's own rule: 4 starters flagged/out at the GW8 deadline (Saka 0%, Szoboszlai 0%, Stach 50%, Calvert-Lewin 50%); chip_eval 23 Oct ranks GW9 > GW10 > GW11 (raw +20.8 / +18.1 / +16.0; cal +4.6 / +4.0 / +3.5). GW8 was patched with the 2 FTs (Saka→Neto, Szoboszlai→Rice) instead of a 15-minute Wildcard. Build Fri 30 Oct 18:00 after the exam block, finalise Sat 09:30-11:00 after the press conferences | Fri 30 Oct (build), Sat 31 Oct (finalise) |
+| Bench Boost 1 | **first GW after the WC where the bench has 4 starters** — on the GW9 WC squad chip_eval prices BB at GW10 +7.4 raw, GW11 +6.6 (the 2025-26 calibration puts first-half BB nearer +1-2, the weakest chip). Proposal of 23 Oct: GW10 (Sat 7 Nov), decided at the GW10 prep with the real bench; then TC GW11 | the GW10 prep |
 | Free Hit 1 | Reactive (injury pile-up / bad fixture week). Hard fallback **GW18 (Tue 29 Dec)**, festive midweek rotation. **Never GW19**: FH there blocks FH2 in GW20 | Sat 26 Dec, GW17 prep |
 | Second set (GW20-38) | Hold all four for the spring BGW/DGW map, revealed by the FA Cup R5 draw (~mid-Feb): WC2 the GW before the big DGW, BB on it, TC on a Haaland DGW, FH on the big BGW | mid-Feb 2027 |
 
