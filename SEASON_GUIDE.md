@@ -6,11 +6,11 @@ The repo runs live this season. This is the operational handbook.
 
 ```bash
 # The weekly run: 3-GW planner, only this GW's moves are executed
-python scripts/gameweek.py --team-id <YOUR_ENTRY_ID> --horizon 3 --chip-plan "wc:9"
+python scripts/gameweek.py --team-id <YOUR_ENTRY_ID> --horizon 3 --chip-plan "tc:11,bb:12"
 # Cross-check: single-GW optimizer
 python scripts/gameweek.py --team-id <YOUR_ENTRY_ID> --skip-refresh
 # Apply (plans on the authenticated my-team state; commits in one go):
-python scripts/gameweek.py --team-id <YOUR_ENTRY_ID> --horizon 3 --chip-plan "wc:9" --apply --yes
+python scripts/gameweek.py --team-id <YOUR_ENTRY_ID> --horizon 3 --chip-plan "tc:11,bb:12" --skip-refresh --apply --yes
 ```
 
 `--chip-plan` lists only chips already decided that fall inside the next three
@@ -28,7 +28,12 @@ Every run prints, in order:
 4. The decision-log path (`data/live/2026-27/decisions/`).
 
 Timing: run it the evening before the deadline (post-press-conference flags),
-again 1-2 h before. `--skip-refresh` is refused until the summaries postdate the
+again 1-2 h before. **Read the deadline from the API every time** (`events[].deadline_time`):
+TV picks move deadlines after the calendar was built. Found 6 Nov 2026: GW10 had moved
+from Sat 7 Nov 14:30 to Fri 6 Nov 18:30 London, and GW11-14, 16-20 had all moved too
+(GW11 11:00 not 14:30; GW12 Fri 27 Nov; GW13 Tue 1 Dec; GW18 Tue 29 Dec; GW19 Fri 1 Jan;
+GW20 Tue 5 Jan). The calendar events for GW10-12 were corrected that day; GW13, 14, 16-20
+still carry the old times until the calendar edits are allowed. `--skip-refresh` is refused until the summaries postdate the
 last GW's final scores (09:00 UK the day after its last match).
 
 Flags: availability enters once, as a calibrated multiplier (75% flag → 0.40×,
@@ -106,7 +111,7 @@ GW through the rules engine, `scripts/backtest_horizon.py`), net points:
 - Prices: locked until GW1 deadline, then ±£0.1m/day at 00:00 UK; NEW official
   Price Change Predictor page (updates every 15 min) — useful before buying.
 
-## Chip plan (approved 2026-09-18, after GW5; re-cut 2026-10-23 after the missed GW7: WC1 → GW9 under the early-pull rule, TC1 and BB1 rows carry proposals awaiting his word)
+## Chip plan (approved 2026-09-18, after GW5; re-cut 2026-10-23 after the missed GW7; GW9 missed too, so WC1 was PLAYED in GW10 on 6 Nov 2026, with TC1 GW11 and BB1 GW12 accepted the same day)
 
 Facts behind it: **no blank or double GW anywhere in GW1-19** (0 unscheduled
 fixtures on 2026-09-18), so first-half chips are single-GW plays worth roughly
@@ -116,9 +121,9 @@ Decision points are in Google Calendar (green events, like the deadlines).
 
 | Chip | Plan | Decision point |
 |------|------|----------------|
-| Triple Captain 1 | **GW7 MISSED** (the GW7 deadline passed with no transfers and no chip, noticed 23 Oct). **Proposal of 23 Oct, awaiting his word: GW11, Haaland home v Fulham (Sat 21 Nov)**; chip_eval 23 Oct: raw +7.5 (cal +4.1), level within noise with GW13 v Leeds (+7.6) and GW19 (+7.6). Fallback GW16 v Hull (H) | GW10 prep (Fri 6 Nov) |
-| Wildcard 1 | **GW9 (Sat 31 Oct, 11:00 London)** — pulled forward from GW11 on 23 Oct under this row's own rule: 4 starters flagged/out at the GW8 deadline (Saka 0%, Szoboszlai 0%, Stach 50%, Calvert-Lewin 50%); chip_eval 23 Oct ranks GW9 > GW10 > GW11 (raw +20.8 / +18.1 / +16.0; cal +4.6 / +4.0 / +3.5). GW8 was patched with the 2 FTs (Saka→Neto, Szoboszlai→Rice) instead of a 15-minute Wildcard. Build Fri 30 Oct 18:00 after the exam block, finalise Sat 09:30-11:00 after the press conferences | Fri 30 Oct (build), Sat 31 Oct (finalise) |
-| Bench Boost 1 | **first GW after the WC where the bench has 4 starters** — on the GW9 WC squad chip_eval prices BB at GW10 +7.4 raw, GW11 +6.6 (the 2025-26 calibration puts first-half BB nearer +1-2, the weakest chip). Proposal of 23 Oct: GW10 (Sat 7 Nov), decided at the GW10 prep with the real bench; then TC GW11 | the GW10 prep |
+| Triple Captain 1 | **GW11, Haaland home v Fulham (Sat 21 Nov, deadline 11:00 London)**, accepted with the Wildcard on 6 Nov. chip_eval 6 Nov: TC cal 4.6 at GW11, the highest left once GW10 took the WC (raw 6.9; GW13 and GW19 level on raw). GW7 was MISSED (no run, no chip). Fallback GW16 v Hull (H) | GW11 prep (Sat 21 Nov, 09:30) |
+| Wildcard 1 | **PLAYED GW10 (Fri 6 Nov, 18:30 London)**, his choice from three options at 14:00. GW9 (the 23 Oct re-cut) was MISSED: no run, no transfers. chip_eval 6 Nov ranked GW10 > GW11 > GW12 (raw +20.1 / +15.9 / +11.6; cal +4.4 / +3.5 / +2.5). 11 moves, kept Haaland (C), Rice, Calafiori, Van Hecke; in Pickford, Kinsky, Gabriel (V), Virgil, De Cuyper, Groß, Tavernier, Rayan, Ndiaye, Kostoulas, McBurnie; bank 0.0m; planned 57.4 vs 52.4 without the chip. Applied 14:02 UTC with `--skip-refresh --apply --yes`, verified on my-team | done |
+| Bench Boost 1 | **GW12 (Fri 27 Nov, 18:30 London)** on the Wildcard squad, accepted with the Wildcard on 6 Nov: the bench (Kinsky, De Cuyper, Van Hecke, McBurnie) is four starters; chip_eval 6 Nov +7.4 raw at GW12 (first-half BB calibrates to +1-2, the weakest chip). Confirm at the GW12 prep with the real bench; GW17 (Boxing Day, bench xP 13.1 raw on the base plan) is the alternative if the bench thins | GW12 prep (Fri 27 Nov, 17:00) |
 | Free Hit 1 | Reactive (injury pile-up / bad fixture week). Hard fallback **GW18 (Tue 29 Dec)**, festive midweek rotation. **Never GW19**: FH there blocks FH2 in GW20 | Sat 26 Dec, GW17 prep |
 | Second set (GW20-38) | Hold all four for the spring BGW/DGW map, revealed by the FA Cup R5 draw (~mid-Feb): WC2 the GW before the big DGW, BB on it, TC on a Haaland DGW, FH on the big BGW | mid-Feb 2027 |
 
